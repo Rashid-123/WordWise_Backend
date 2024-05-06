@@ -11,7 +11,12 @@ const app = express();
 
 app.use(express.json({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
-app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
+// app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
+app.use(cors({ 
+  credentials: true, 
+  origin: "https://wordwise-1s368pm3u-shadan-rashids-projects.vercel.app" 
+}));
+
 
 app.use(upload());
 //When you use app.use(express.static(__dirname + "/uploads")),
