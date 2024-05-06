@@ -32,11 +32,12 @@ app.use("/api/posts", postRoutes);
 app.use(notFound);
 app.use(errorHandler);
 connect(process.env.MONGO_URI)
-  .then(
-    app.listen(5000, () => {
-      console.log(`Server started on port ${process.env.PORT}`);
-    })
-  )
+  .then(() => {
+    app.listen(process.env.PORT || 5000, () => {
+      console.log(`Server started on port ${process.env.PORT || 5000}`);
+    });
+  })
   .catch((error) => {
-    console.log(error);
+    console.error("Database connection error:", error);
   });
+
