@@ -14,7 +14,7 @@ app.use(express.urlencoded({ extended: true }));
 // app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
 app.use(cors({ 
   credentials: true, 
-  origin: "https://wordwise-qihaosc07-shadan-rashids-projects.vercel.app" 
+  origin: "https://https://word-wise-frontend.vercel.app/" 
 }));
 
 
