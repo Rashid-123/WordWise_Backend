@@ -11,12 +11,29 @@ const app = express();
 
 app.use(express.json({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
-// app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
-app.use(cors({
-  credentials: true,
-  origin: 'https://word-wise-frontend-ijtt66xey-shadan-rashids-projects.vercel.app'
-}));
+// // app.use(cors({ credentials: true, origin: "http://localhost:3000" }));
+// app.use(cors({
+//   credentials: true,
+//   origin: 'https://word-wise-frontend-ijtt66xey-shadan-rashids-projects.vercel.app'
+// }));
 // app.use(cors());
+const allowedOrigins = [
+  'https://wordwise-31nrylxdb-shadan-rashids-projects.vercel.app',
+  // Add more origins if needed
+];
+
+// Configure CORS
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true); // Allow requests with no origin (e.g., from Postman)
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true); // Allow the request
+    } else {
+      callback(new Error('Not allowed by CORS')); // Block the request
+    }
+  },
+  credentials: true, // Allow credentials like cookies to be sent with the request
+}));
 
 
 app.use(upload());
