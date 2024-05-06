@@ -18,6 +18,7 @@ app.use(cors({
 }));
 
 
+
 app.use(upload());
 //When you use app.use(express.static(__dirname + "/uploads")),
 //you're telling Express to use the express.static middleware
