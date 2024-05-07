@@ -9,7 +9,7 @@ const {
   getAuthors,
 } = require("../controllers/userControllers");
 const authMiddleware = require("../middleware/authMiddleware");
-const { route } = require("./userRoutes");
+// const { route } = require("./userRoutes");
 
 const router = Router();
 
