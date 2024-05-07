@@ -9,7 +9,11 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 // Require statements at the top
 const app = express();
-app.use(cors()); // CORS middleware setup
+// app.use(cors()); // CORS middleware setup
+app.use(cors({
+  origin: 'https://wordwise-31nrylxdb-shadan-rashids-projects.vercel.app',
+  credentials: true // Allow credentials like cookies, authorization headers, etc.
+}));
 
 app.use(express.json({ extended: true })); // Body parser middleware
 app.use(express.urlencoded({ extended: true })); // URL-encoded parser middleware
