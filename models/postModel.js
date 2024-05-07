@@ -13,7 +13,7 @@ const postSchema = new Schema(
         "Art",
         "Investment",
         "Weather",
-        "Programming"
+        "Programming",
         "Others",
       ],
       message: "VALUE is not supported",
