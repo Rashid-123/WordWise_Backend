@@ -14,52 +14,96 @@ const { CLIENT_RENEG_LIMIT } = require("tls");
 // POST : api/posts
 // PROTECTED
 
+// const createPost = async (req, res, next) => {
+//   try {
+//     let { title, category, description } = req.body;
+//     if (!title || !category || !description || !req.files) {
+//       return next(
+//         new HttpError("fill in all fields and choose thumbnail", 422)
+//       );
+//     }
+//     const { thumbnail } = req.files;
+//     //check the files size
+//     if (thumbnail > 2000000) {
+//       return next(
+//         new HttpError("Thumvnail too big , file should be less than 2mb")
+//       );
+//     }
+
+//     let fileName = thumbnail.name;
+//     let splittedFilename = fileName.split(".");
+//     let newFilename =
+//       splittedFilename[0] +
+//       uuid() +
+//       "." +
+//       splittedFilename[splittedFilename.length - 1];
+//     thumbnail.mv(
+//       path.join(__dirname, "..", "/uploads", newFilename),
+//       async (err) => {
+//         if (err) {
+//           return next(new HttpError(err));
+//         } else {
+//           const newPost = await Post.create({
+//             title,
+//             category,
+//             description,
+//             thumbnail: newFilename,
+//             creator: req.user.id,
+//           });
+//           if (!newPost) {
+//             return next(new HttpError("post couldn't be created", 422));
+//           }
+//           // find user and increase post count by 1
+//           const currrentUser = await User.findById(req.user.id);
+//           const userPostCount = currrentUser.posts + 1;
+//           await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+
+//           res.status(201).json(newPost);
+//         }
+//       }
+//     );
+//   } catch (error) {
+//     return next(new HttpError(error));
+//   }
+// };
 const createPost = async (req, res, next) => {
   try {
     let { title, category, description } = req.body;
     if (!title || !category || !description || !req.files) {
-      return next(
-        new HttpError("fill in all fields and choose thumbnail", 422)
-      );
-    }
-    const { thumbnail } = req.files;
-    //check the files size
-    if (thumbnail > 2000000) {
-      return next(
-        new HttpError("Thumvnail too big , file should be less than 2mb")
-      );
+      return next(new HttpError("Fill in all fields and choose thumbnail", 422));
     }
 
-    let fileName = thumbnail.name;
-    let splittedFilename = fileName.split(".");
-    let newFilename =
-      splittedFilename[0] +
-      uuid() +
-      "." +
-      splittedFilename[splittedFilename.length - 1];
+    const { thumbnail } = req.files;
+    if (thumbnail.size > 2000000) {
+      return next(new HttpError("Thumbnail too big. File should be less than 2mb", 422));
+    }
+
+    const fileName = thumbnail.name;
+    const newFilename = fileName.split(".")[0] + uuid() + "." + fileName.split(".").pop();
     thumbnail.mv(
       path.join(__dirname, "..", "/uploads", newFilename),
       async (err) => {
         if (err) {
           return next(new HttpError(err));
-        } else {
-          const newPost = await Post.create({
-            title,
-            category,
-            description,
-            thumbnail: newFilename,
-            creator: req.user.id,
-          });
-          if (!newPost) {
-            return next(new HttpError("post couldn't be created", 422));
-          }
-          // find user and increase post count by 1
-          const currrentUser = await User.findById(req.user.id);
-          const userPostCount = currrentUser.posts + 1;
-          await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
-
-          res.status(201).json(newPost);
         }
+
+        const newPost = await Post.create({
+          title,
+          category,
+          description,
+          thumbnail: newFilename,
+          creator: req.user.id,
+        });
+
+        if (!newPost) {
+          return next(new HttpError("Post couldn't be created", 422));
+        }
+
+        const currentUser = await User.findById(req.user.id);
+        const userPostCount = currentUser.posts + 1;
+        await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+
+        res.status(201).json(newPost);
       }
     );
   } catch (error) {
