@@ -12,9 +12,8 @@ const app = express();
 // app.use(cors()); // CORS middleware setup
 app.use(
   cors({
-    // origin: "https://wordwise-31nrylxdb-shadan-rashids-projects.vercel.app",
-    origin: "http://localhost:3000",
-    credentials: true, // Allow credentials like cookies, authorization headers, etc.
+    origin: "https://wordwise-o5cvukhbi-shadan-rashids-projects.vercel.app",
+    credentials: true, // If your frontend sends cookies, include this
   })
 );
 
