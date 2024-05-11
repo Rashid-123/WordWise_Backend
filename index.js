@@ -10,10 +10,13 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 // Require statements at the top
 const app = express();
 // app.use(cors()); // CORS middleware setup
-app.use(cors({
-  origin: 'https://wordwise-31nrylxdb-shadan-rashids-projects.vercel.app',
-  credentials: true // Allow credentials like cookies, authorization headers, etc.
-}));
+app.use(
+  cors({
+    // origin: "https://wordwise-31nrylxdb-shadan-rashids-projects.vercel.app",
+    origin: "http://localhost:3000",
+    credentials: true, // Allow credentials like cookies, authorization headers, etc.
+  })
+);
 
 app.use(express.json({ extended: true })); // Body parser middleware
 app.use(express.urlencoded({ extended: true })); // URL-encoded parser middleware
@@ -31,11 +34,10 @@ app.use(errorHandler);
 // Database connection and server listening
 connect(process.env.MONGO_URI)
   .then(() => {
-    app.listen(process.env.PORT || 5000, () => {
-      console.log(`Server started on port ${process.env.PORT || 5000}`);
+    app.listen(8000, () => {
+      console.log(`Server started on port ${process.env.PORT || 8000}`);
     });
   })
   .catch((error) => {
     console.error("Database connection error:", error);
   });
-
