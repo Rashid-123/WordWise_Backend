@@ -109,74 +109,22 @@ const getUser = async (req, res, next) => {
   }
 };
 
-// //---------------- CHANGE USER AVATAR (profile picture) ------------
-// // POST: api/users/change-avatar
-// // ROTECTED
-// const changeAvatar = async (req, res, next) => {
-//   console.log("change avatar");
-//   try {
-//     console.log("1");
-
-//     if (!req.files.avatar) {
-//       return next(new HttpError("Please choose an image", 422));
-//     }
-//     console.log("2");
-
-//     // Find user from database
-//     const user = await User.findById(req.user.id);
-//     //delete old avatar if exists
-//     if (user.avatar) {
-//       fs.unlink(path.join(__dirname, "..", "uploads", user.avatar), (err) => {
-//         if (err) {
-//           return next(new HttpError(err));
-//         }
-//       });
-//     }
-//     const { avatar } = req.files;
-//     // Check file size;
-//     if (avatar.size > 500000) {
-//       return next(
-//         new HttpError("Profile picture too big. should be less than 500kb"),
-//         422
-//       );
-//     }
-//     let fileName;
-//     fileName = avatar.name;
-//     let splittedFilename = fileName.split(".");
-//     let newFilename =
-//       splittedFilename[0] +
-//       uuid() +
-//       "." +
-//       splittedFilename[splittedFilename.length - 1];
-//     avatar.mv(
-//       path.join(__dirname, "..", "uploads", newFilename),
-//       async (err) => {
-//         if (err) {
-//           return next(new HttpError(err));
-//         }
-//         const updatedAvatar = await User.findByIdAndUpdate(
-//           req.user.id,
-//           { avatar: newFilename },
-//           { new: true }
-//         );
-//         if (!updatedAvatar) {
-//           return next(new HttpError("Avatar couldn't be changed", 422));
-//         }
-//         res.status(200).json(updatedAvatar);
-//       }
-//     );
-//   } catch (error) {
-//     return next(new HttpError(error));
-//   }
-// };
+//---------------- CHANGE USER AVATAR (profile picture) ------------
+// POST: api/users/change-avatar
+// ROTECTED
 const changeAvatar = async (req, res, next) => {
   console.log("change avatar");
   try {
-    if (!req.files.avatar) {
-      throw new HttpError("Please choose an image", 422);
-    }
+    console.log("1");
 
+    if (!req.files.avatar) {
+      return next(new HttpError("Please choose an image", 422));
+    }
+    console.log("2");
+
+    // Find user from database
     const user = await User.findById(req.user.id);
+    //delete old avatar if exists
     if (user.avatar) {
       fs.unlink(path.join(__dirname, "..", "uploads", user.avatar), (err) => {
         if (err) {
@@ -184,40 +132,36 @@ const changeAvatar = async (req, res, next) => {
         }
       });
     }
-
     const { avatar } = req.files;
+    // Check file size;
     if (avatar.size > 500000) {
-      throw new HttpError(
-        "Profile picture too big. should be less than 500kb",
+      return next(
+        new HttpError("Profile picture too big. should be less than 500kb"),
         422
       );
     }
-
-    let fileName = avatar.name;
+    let fileName;
+    fileName = avatar.name;
     let splittedFilename = fileName.split(".");
     let newFilename =
       splittedFilename[0] +
       uuid() +
       "." +
       splittedFilename[splittedFilename.length - 1];
-
     avatar.mv(
       path.join(__dirname, "..", "uploads", newFilename),
       async (err) => {
         if (err) {
-          throw new HttpError(err);
+          return next(new HttpError(err));
         }
-
         const updatedAvatar = await User.findByIdAndUpdate(
           req.user.id,
           { avatar: newFilename },
           { new: true }
         );
-
         if (!updatedAvatar) {
-          throw new HttpError("Avatar couldn't be changed", 422);
+          return next(new HttpError("Avatar couldn't be changed", 422));
         }
-
         res.status(200).json(updatedAvatar);
       }
     );
@@ -225,6 +169,63 @@ const changeAvatar = async (req, res, next) => {
     return next(new HttpError(error));
   }
 };
+
+// const changeAvatar = async (req, res, next) => {
+//   console.log("change avatar");
+//   try {
+//     if (!req.files.avatar) {
+//       throw new HttpError("Please choose an image", 422);
+//     }
+
+//     const user = await User.findById(req.user.id);
+//     if (user.avatar) {
+//       fs.unlink(path.join(__dirname, "..", "uploads", user.avatar), (err) => {
+//         if (err) {
+//           return next(new HttpError(err));
+//         }
+//       });
+//     }
+
+//     const { avatar } = req.files;
+//     if (avatar.size > 500000) {
+//       throw new HttpError(
+//         "Profile picture too big. should be less than 500kb",
+//         422
+//       );
+//     }
+
+//     let fileName = avatar.name;
+//     let splittedFilename = fileName.split(".");
+//     let newFilename =
+//       splittedFilename[0] +
+//       uuid() +
+//       "." +
+//       splittedFilename[splittedFilename.length - 1];
+
+//     avatar.mv(
+//       path.join(__dirname, "..", "uploads", newFilename),
+//       async (err) => {
+//         if (err) {
+//           throw new HttpError(err);
+//         }
+
+//         const updatedAvatar = await User.findByIdAndUpdate(
+//           req.user.id,
+//           { avatar: newFilename },
+//           { new: true }
+//         );
+
+//         if (!updatedAvatar) {
+//           throw new HttpError("Avatar couldn't be changed", 422);
+//         }
+
+//         res.status(200).json(updatedAvatar);
+//       }
+//     );
+//   } catch (error) {
+//     return next(new HttpError(error));
+//   }
+// };
 
 //---------------- EDIT USER DETAILS (from profile) ------------
 // POST: api/users/edit-user

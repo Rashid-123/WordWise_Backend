@@ -10,6 +10,7 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 // Require statements at the top
 const app = express();
 // app.use(cors()); // CORS middleware setup
+<<<<<<< HEAD
 // app.use(
 //   cors({
 //     origin: "https://wordwise-o5cvukhbi-shadan-rashids-projects.vercel.app",
@@ -20,6 +21,14 @@ app.use(cors({
   origin: 'http://localhost:3000',
   credentials: true, // If your frontend sends cookies, include this
 }));
+=======
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+  })
+);
+>>>>>>> d07ea77 (fifth commit)
 
 app.use(express.json({ extended: true })); // Body parser middleware
 app.use(express.urlencoded({ extended: true })); // URL-encoded parser middleware
@@ -37,8 +46,8 @@ app.use(errorHandler);
 // Database connection and server listening
 connect(process.env.MONGO_URI)
   .then(() => {
-    app.listen(8000, () => {
-      console.log(`Server started on port ${process.env.PORT || 8000}`);
+    app.listen(5000, () => {
+      console.log(`Server started on port ${process.env.PORT || 5000}`);
     });
   })
   .catch((error) => {

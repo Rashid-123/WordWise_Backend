@@ -262,6 +262,7 @@ const deletePost = async (req, res, next) => {
     const post = await Post.findById(postId);
     const fileName = post?.thumbnail;
     if (req.user.id == post.creator) {
+      console.log("in delete 1");
       // delete thumbnail from uploads folder
       fs.unlink(
         path.join(__dirname, "../uploads", fileName),
