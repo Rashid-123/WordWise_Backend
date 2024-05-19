@@ -1,11 +1,37 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
-const fs = require("fs");
-const path = require("path");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
-const { Http2ServerRequest } = require("http2");
+const mime = require("mime-types");
+const {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+
+//
+///// --------------- AWS S3 Setup ----------------------------
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+async function getObjectURL(key) {
+  const command = new GetObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Key: key,
+  });
+
+  const url = await getSignedUrl(s3Client, command);
+  return url;
+}
 //--------------------------------------------------------------
 //----------------------- REGISTER A NEW USER -------------------
 // POST: api/users/register
@@ -92,10 +118,10 @@ const loginUser = async (req, res, next) => {
   }
 };
 
-//-------------------------------------------------------
-//---------------- USER PROFILE ------------
-// POST: api/users/:id
-// ROTECTED
+// //-------------------------------------------------------
+// //---------------- USER PROFILE ------------
+// // POST: api/users/:id
+// // ROTECTED
 const getUser = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -103,81 +129,42 @@ const getUser = async (req, res, next) => {
     if (!user) {
       return next(new HttpError("User not found", 404));
     }
-    res.status(200).json(user);
-  } catch (error) {
-    return next(new HttpError(error));
-  }
-};
 
-//---------------- CHANGE USER AVATAR (profile picture) ------------
-// POST: api/users/change-avatar
-// ROTECTED
-const changeAvatar = async (req, res, next) => {
-  console.log("change avatar");
-  try {
-    console.log("1");
-
-    if (!req.files.avatar) {
-      return next(new HttpError("Please choose an image", 422));
-    }
-    console.log("2");
-
-    // Find user from database
-    const user = await User.findById(req.user.id);
-    //delete old avatar if exists
+    let avatarURL;
     if (user.avatar) {
-      fs.unlink(path.join(__dirname, "..", "uploads", user.avatar), (err) => {
-        if (err) {
-          return next(new HttpError(err));
-        }
-      });
+      avatarURL = await getObjectURL(user.avatar);
     }
-    const { avatar } = req.files;
-    // Check file size;
-    if (avatar.size > 500000) {
-      return next(
-        new HttpError("Profile picture too big. should be less than 500kb"),
-        422
-      );
+
+    const userResponse = {
+      ...user.toObject(),
+    };
+
+    if (avatarURL) {
+      userResponse.avatarURL = avatarURL;
     }
-    let fileName;
-    fileName = avatar.name;
-    let splittedFilename = fileName.split(".");
-    let newFilename =
-      splittedFilename[0] +
-      uuid() +
-      "." +
-      splittedFilename[splittedFilename.length - 1];
-    avatar.mv(
-      path.join(__dirname, "..", "uploads", newFilename),
-      async (err) => {
-        if (err) {
-          return next(new HttpError(err));
-        }
-        const updatedAvatar = await User.findByIdAndUpdate(
-          req.user.id,
-          { avatar: newFilename },
-          { new: true }
-        );
-        if (!updatedAvatar) {
-          return next(new HttpError("Avatar couldn't be changed", 422));
-        }
-        res.status(200).json(updatedAvatar);
-      }
-    );
+
+    res.status(200).json(userResponse);
   } catch (error) {
     return next(new HttpError(error));
   }
 };
 
+// //---------------- CHANGE USER AVATAR (profile picture) ------------
+// // POST: api/users/change-avatar
+// // ROTECTED
 // const changeAvatar = async (req, res, next) => {
 //   console.log("change avatar");
 //   try {
-//     if (!req.files.avatar) {
-//       throw new HttpError("Please choose an image", 422);
-//     }
+//     console.log("1");
 
+//     if (!req.files.avatar) {
+//       return next(new HttpError("Please choose an image", 422));
+//     }
+//     console.log("2");
+
+//     // Find user from database
 //     const user = await User.findById(req.user.id);
+//     //delete old avatar if exists
 //     if (user.avatar) {
 //       fs.unlink(path.join(__dirname, "..", "uploads", user.avatar), (err) => {
 //         if (err) {
@@ -185,40 +172,36 @@ const changeAvatar = async (req, res, next) => {
 //         }
 //       });
 //     }
-
 //     const { avatar } = req.files;
+//     // Check file size;
 //     if (avatar.size > 500000) {
-//       throw new HttpError(
-//         "Profile picture too big. should be less than 500kb",
+//       return next(
+//         new HttpError("Profile picture too big. should be less than 500kb"),
 //         422
 //       );
 //     }
-
-//     let fileName = avatar.name;
+//     let fileName;
+//     fileName = avatar.name;
 //     let splittedFilename = fileName.split(".");
 //     let newFilename =
 //       splittedFilename[0] +
 //       uuid() +
 //       "." +
 //       splittedFilename[splittedFilename.length - 1];
-
 //     avatar.mv(
 //       path.join(__dirname, "..", "uploads", newFilename),
 //       async (err) => {
 //         if (err) {
-//           throw new HttpError(err);
+//           return next(new HttpError(err));
 //         }
-
 //         const updatedAvatar = await User.findByIdAndUpdate(
 //           req.user.id,
 //           { avatar: newFilename },
 //           { new: true }
 //         );
-
 //         if (!updatedAvatar) {
-//           throw new HttpError("Avatar couldn't be changed", 422);
+//           return next(new HttpError("Avatar couldn't be changed", 422));
 //         }
-
 //         res.status(200).json(updatedAvatar);
 //       }
 //     );
@@ -227,9 +210,168 @@ const changeAvatar = async (req, res, next) => {
 //   }
 // };
 
+/////////////////////////////////////////////////////////////////////////
+
+// const changeAvatar = async (req, res, next) => {
+//   try {
+//     if (!req.files || !req.files.avatar) {
+//       return next(new HttpError("Please choose an image", 422));
+//     }
+//     console.log("1");
+
+//     const { avatar } = req.files;
+
+//     // Check file size
+//     if (avatar.size > 500000) {
+//       return next(
+//         new HttpError("Profile picture too big. Should be less than 500KB", 422)
+//       );
+//     }
+
+//     // Find user from database
+//     const user = await User.findById(req.user.id);
+//     console.log("2");
+//     // Delete old avatar if exists in S3
+//     if (user.avatar) {
+//       const deleteParams = {
+//         Bucket: process.env.AWS_S3_BUCKET_NAME,
+//         Key: user.avatar,
+//       };
+
+//       try {
+//         await s3client.send(new DeleteObjectCommand(deleteParams));
+//       } catch (err) {
+//         console.error("Error deleting old avatar from S3:", err);
+//       }
+//     }
+//     console.log("3");
+
+//     ////-------------- Uplaod File to AWS S3 --------------
+//     let fileName = avatar.name;
+//     let splittedFilename = fileName.split(".");
+//     let newFilename =
+//       splittedFilename[0] +
+//       uuid() +
+//       "." +
+//       splittedFilename[splittedFilename.length - 1];
+
+//     const uploadParams = {
+//       Bucket: process.env.AWS_S3_BUCKET_NAME,
+//       Key: `wordwise/avatar/${newFilename}`,
+//       Body: avatar.data,
+//       ACL: "private",
+//     };
+
+//     try {
+//       await s3client.send(new PutObjectCommand(uploadParams));
+//     } catch (err) {
+//       return next(new HttpError("Error uploading avatar to S3", 500));
+//     }
+//     console.log("4");
+//     // store the new avatar filename to database
+//     const updatedAvatar = await User.findByIdAndUpdate(
+//       req.user.id,
+//       { avatar: `wordwise/avatar/${newFilename}` },
+//       { new: true }
+//     );
+//     if (!updatedAvatar) {
+//       return next(new HttpError("Avatar couldn't be changed", 422));
+//     }
+
+//     // ------------- Return the Signed URL ---------------
+
+//     const Avatar_url = await getObjectURL(`wordwise/avatar/${newFilename}`);
+//     res.status(200).json({ Avatar_url });
+//     console.log("3");
+//   } catch (error) {
+//     return next(new HttpError(error.message, 500));
+//   }
+// };
+
+const changeAvatar = async (req, res, next) => {
+  try {
+    if (!req.files || !req.files.avatar) {
+      return next(new HttpError("Please choose an image", 422));
+    }
+
+    const { avatar } = req.files;
+
+    // Check file size
+    if (avatar.size > 500000) {
+      return next(
+        new HttpError("Profile picture too big. Should be less than 500KB", 422)
+      );
+    }
+
+    // Find user from database
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+
+    // Delete old avatar if exists in S3
+    if (user.avatar) {
+      const deleteParams = {
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: user.avatar,
+      };
+
+      try {
+        await s3Client.send(new DeleteObjectCommand(deleteParams));
+      } catch (err) {
+        console.error("Error deleting old avatar from S3:", err);
+        throw new HttpError("Failed to delete old avatar from S3", 500);
+      }
+    }
+
+    // Upload new avatar to AWS S3
+    let fileName = avatar.name;
+    let splittedFilename = fileName.split(".");
+    let newFilename =
+      splittedFilename[0] +
+      uuid() +
+      "." +
+      splittedFilename[splittedFilename.length - 1];
+
+    const uploadParams = {
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: `wordwise/avatar/${newFilename}`,
+      Body: avatar.data,
+      ContentType: mime.lookup(avatar.name) || "application/octet-stream",
+      ACL: "private",
+    };
+
+    try {
+      await s3Client.send(new PutObjectCommand(uploadParams));
+    } catch (err) {
+      console.error("Error uploading avatar to S3:", err);
+      throw new HttpError("Error uploading avatar to S3", 500);
+    }
+
+    // Store the new avatar key in the database
+    const updatedAvatar = await User.findByIdAndUpdate(
+      req.user.id,
+      { avatar: `wordwise/avatar/${newFilename}` },
+      { new: true }
+    );
+
+    if (!updatedAvatar) {
+      return next(new HttpError("Avatar couldn't be changed", 422));
+    }
+
+    // Generate and return the signed URL for the uploaded avatar
+    const avatarURL = await getObjectURL(`wordwise/avatar/${newFilename}`);
+    res.status(200).json({ avatarURL });
+  } catch (error) {
+    console.error("Error changing avatar:", error);
+    return next(new HttpError(error.message, 500));
+  }
+};
+
 //---------------- EDIT USER DETAILS (from profile) ------------
 // POST: api/users/edit-user
 // PROTECTED
+
 const editUser = async (req, res, next) => {
   try {
     const { name, email, currentPassword, newPassword, confirmNewPassword } =
@@ -286,7 +428,17 @@ const editUser = async (req, res, next) => {
 const getAuthors = async (req, res, next) => {
   try {
     const authors = await User.find().select("-password");
-    res.json(authors);
+    const authorsWithAvatars = await Promise.all(
+      authors.map(async (author) => {
+        const authorObj = author.toObject();
+        if (author.avatar) {
+          authorObj.avatarURL = await getObjectURL(author.avatar);
+        }
+        return authorObj;
+      })
+    );
+
+    res.json(authorsWithAvatars);
   } catch (error) {
     return next(new HttpError(error));
   }
