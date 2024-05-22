@@ -149,7 +149,7 @@ const getSinglePost = async (req, res, next) => {
   }
 };
 
-//-------------------- GET POST BY CATEGORY
+///////////--------------- GET POST BY CATEGORY -----------------------
 // GET : api/posts/categories/:category
 // UNPROTECTED
 
@@ -157,7 +157,20 @@ const getCatPosts = async (req, res, next) => {
   try {
     const { category } = req.params;
     const catPOsts = await Post.find({ category }).sort({ updatedAt: -1 });
-    res.status(200).json(catPOsts);
+    const postsWithUrls = await Promise.all(
+      catPOsts.map(async (post) => {
+        if (post.thumbnail) {
+          const thumbnailURL = await getObjectURL(post.thumbnail);
+          return {
+            ...post.toObject(),
+            thumbnailURL,
+          };
+        }
+        return post.toObject();
+      })
+    );
+
+    res.status(200).json(postsWithUrls);
   } catch (error) {
     return next(new HttpError(error));
   }
@@ -171,7 +184,20 @@ const getUserPosts = async (req, res, next) => {
   try {
     const { id } = req.params;
     const posts = await Post.find({ creator: id }).sort({ updatedAt: -1 });
-    res.status(200).json(posts);
+    const postsWithUrls = await Promise.all(
+      posts.map(async (post) => {
+        if (post.thumbnail) {
+          const thumbnailURL = await getObjectURL(post.thumbnail);
+          return {
+            ...post.toObject(),
+            thumbnailURL,
+          };
+        }
+        return post.toObject();
+      })
+    );
+
+    res.status(200).json(postsWithUrls);
   } catch (error) {
     return next(new HttpError(error));
   }
