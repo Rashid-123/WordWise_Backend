@@ -149,144 +149,8 @@ const getUser = async (req, res, next) => {
   }
 };
 
-// //---------------- CHANGE USER AVATAR (profile picture) ------------
-// // POST: api/users/change-avatar
-// // ROTECTED
-// const changeAvatar = async (req, res, next) => {
-//   console.log("change avatar");
-//   try {
-//     console.log("1");
-
-//     if (!req.files.avatar) {
-//       return next(new HttpError("Please choose an image", 422));
-//     }
-//     console.log("2");
-
-//     // Find user from database
-//     const user = await User.findById(req.user.id);
-//     //delete old avatar if exists
-//     if (user.avatar) {
-//       fs.unlink(path.join(__dirname, "..", "uploads", user.avatar), (err) => {
-//         if (err) {
-//           return next(new HttpError(err));
-//         }
-//       });
-//     }
-//     const { avatar } = req.files;
-//     // Check file size;
-//     if (avatar.size > 500000) {
-//       return next(
-//         new HttpError("Profile picture too big. should be less than 500kb"),
-//         422
-//       );
-//     }
-//     let fileName;
-//     fileName = avatar.name;
-//     let splittedFilename = fileName.split(".");
-//     let newFilename =
-//       splittedFilename[0] +
-//       uuid() +
-//       "." +
-//       splittedFilename[splittedFilename.length - 1];
-//     avatar.mv(
-//       path.join(__dirname, "..", "uploads", newFilename),
-//       async (err) => {
-//         if (err) {
-//           return next(new HttpError(err));
-//         }
-//         const updatedAvatar = await User.findByIdAndUpdate(
-//           req.user.id,
-//           { avatar: newFilename },
-//           { new: true }
-//         );
-//         if (!updatedAvatar) {
-//           return next(new HttpError("Avatar couldn't be changed", 422));
-//         }
-//         res.status(200).json(updatedAvatar);
-//       }
-//     );
-//   } catch (error) {
-//     return next(new HttpError(error));
-//   }
-// };
-
-/////////////////////////////////////////////////////////////////////////
-
-// const changeAvatar = async (req, res, next) => {
-//   try {
-//     if (!req.files || !req.files.avatar) {
-//       return next(new HttpError("Please choose an image", 422));
-//     }
-//     console.log("1");
-
-//     const { avatar } = req.files;
-
-//     // Check file size
-//     if (avatar.size > 500000) {
-//       return next(
-//         new HttpError("Profile picture too big. Should be less than 500KB", 422)
-//       );
-//     }
-
-//     // Find user from database
-//     const user = await User.findById(req.user.id);
-//     console.log("2");
-//     // Delete old avatar if exists in S3
-//     if (user.avatar) {
-//       const deleteParams = {
-//         Bucket: process.env.AWS_S3_BUCKET_NAME,
-//         Key: user.avatar,
-//       };
-
-//       try {
-//         await s3client.send(new DeleteObjectCommand(deleteParams));
-//       } catch (err) {
-//         console.error("Error deleting old avatar from S3:", err);
-//       }
-//     }
-//     console.log("3");
-
-//     ////-------------- Uplaod File to AWS S3 --------------
-//     let fileName = avatar.name;
-//     let splittedFilename = fileName.split(".");
-//     let newFilename =
-//       splittedFilename[0] +
-//       uuid() +
-//       "." +
-//       splittedFilename[splittedFilename.length - 1];
-
-//     const uploadParams = {
-//       Bucket: process.env.AWS_S3_BUCKET_NAME,
-//       Key: `wordwise/avatar/${newFilename}`,
-//       Body: avatar.data,
-//       ACL: "private",
-//     };
-
-//     try {
-//       await s3client.send(new PutObjectCommand(uploadParams));
-//     } catch (err) {
-//       return next(new HttpError("Error uploading avatar to S3", 500));
-//     }
-//     console.log("4");
-//     // store the new avatar filename to database
-//     const updatedAvatar = await User.findByIdAndUpdate(
-//       req.user.id,
-//       { avatar: `wordwise/avatar/${newFilename}` },
-//       { new: true }
-//     );
-//     if (!updatedAvatar) {
-//       return next(new HttpError("Avatar couldn't be changed", 422));
-//     }
-
-//     // ------------- Return the Signed URL ---------------
-
-//     const Avatar_url = await getObjectURL(`wordwise/avatar/${newFilename}`);
-//     res.status(200).json({ Avatar_url });
-//     console.log("3");
-//   } catch (error) {
-//     return next(new HttpError(error.message, 500));
-//   }
-// };
+///////////////////////////////////////////////////////
+///////// -------------- CHANGE USER AVATAR --------------------------
 
 const changeAvatar = async (req, res, next) => {
   try {
@@ -335,7 +199,7 @@ const changeAvatar = async (req, res, next) => {
 
     const uploadParams = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
-      Key: `wordwise/avatar/${newFilename}`,
+      Key: `avatar/${newFilename}`,
       Body: avatar.data,
       ContentType: mime.lookup(avatar.name) || "application/octet-stream",
       ACL: "private",
@@ -351,7 +215,7 @@ const changeAvatar = async (req, res, next) => {
     // Store the new avatar key in the database
     const updatedAvatar = await User.findByIdAndUpdate(
       req.user.id,
-      { avatar: `wordwise/avatar/${newFilename}` },
+      { avatar: `avatar/${newFilename}` },
       { new: true }
     );
 
@@ -360,7 +224,7 @@ const changeAvatar = async (req, res, next) => {
     }
 
     // Generate and return the signed URL for the uploaded avatar
-    const avatarURL = await getObjectURL(`wordwise/avatar/${newFilename}`);
+    const avatarURL = await getObjectURL(`avatar/${newFilename}`);
     res.status(200).json({ avatarURL });
   } catch (error) {
     console.error("Error changing avatar:", error);

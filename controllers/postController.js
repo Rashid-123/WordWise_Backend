@@ -1,117 +1,102 @@
 const Post = require("../models/postModel");
 const User = require("../models/userModel");
+// const { post } = require("../routes/postRoutes");
 const path = require("path");
 const fs = require("fs");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
-const { hasUncaughtExceptionCaptureCallback } = require("process");
-const { promises } = require("dns");
-const { Http2ServerResponse } = require("http2");
-const { CLIENT_RENEG_LIMIT } = require("tls");
-// const { post } = require("../routes/postRoutes");
+const mime = require("mime-types");
+const {
+  S3Client,
+  GetObjectCommand,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} = require("@aws-sdk/client-s3");
+const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
-//-------------------- CREATE A POST
+//
+///// --------------- AWS S3 Setup ----------------------------
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION,
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+
+async function getObjectURL(key) {
+  const command = new GetObjectCommand({
+    Bucket: process.env.AWS_S3_BUCKET_NAME,
+    Key: key,
+  });
+
+  const url = await getSignedUrl(s3Client, command);
+  return url;
+}
+
+////////////////////----------- CREATE A POST ------------------------
 // POST : api/posts
 // PROTECTED
 
-// const createPost = async (req, res, next) => {
-//   try {
-//     let { title, category, description } = req.body;
-//     if (!title || !category || !description || !req.files) {
-//       return next(
-//         new HttpError("fill in all fields and choose thumbnail", 422)
-//       );
-//     }
-//     const { thumbnail } = req.files;
-//     //check the files size
-//     if (thumbnail > 2000000) {
-//       return next(
-//         new HttpError("Thumvnail too big , file should be less than 2mb")
-//       );
-//     }
-
-//     let fileName = thumbnail.name;
-//     let splittedFilename = fileName.split(".");
-//     let newFilename =
-//       splittedFilename[0] +
-//       uuid() +
-//       "." +
-//       splittedFilename[splittedFilename.length - 1];
-//     thumbnail.mv(
-//       path.join(__dirname, "..", "/uploads", newFilename),
-//       async (err) => {
-//         if (err) {
-//           return next(new HttpError(err));
-//         } else {
-//           const newPost = await Post.create({
-//             title,
-//             category,
-//             description,
-//             thumbnail: newFilename,
-//             creator: req.user.id,
-//           });
-//           if (!newPost) {
-//             return next(new HttpError("post couldn't be created", 422));
-//           }
-//           // find user and increase post count by 1
-//           const currrentUser = await User.findById(req.user.id);
-//           const userPostCount = currrentUser.posts + 1;
-//           await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
-
-//           res.status(201).json(newPost);
-//         }
-//       }
-//     );
-//   } catch (error) {
-//     return next(new HttpError(error));
-//   }
-// };
 const createPost = async (req, res, next) => {
   try {
     let { title, category, description } = req.body;
     if (!title || !category || !description || !req.files) {
-      return next(new HttpError("Fill in all fields and choose thumbnail", 422));
+      return next(
+        new HttpError("Fill in all fields and choose thumbnail", 422)
+      );
     }
 
     const { thumbnail } = req.files;
     if (thumbnail.size > 2000000) {
-      return next(new HttpError("Thumbnail too big. File should be less than 2mb", 422));
+      return next(
+        new HttpError("Thumbnail too big. File should be less than 2mb", 422)
+      );
     }
 
     const fileName = thumbnail.name;
-    const newFilename = fileName.split(".")[0] + uuid() + "." + fileName.split(".").pop();
-    thumbnail.mv(
-      path.join(__dirname, "../uploads", newFilename),
-      async (err) => {
-        if (err) {
-          return next(new HttpError(err));
-        }
+    const newFilename =
+      fileName.split(".")[0] + uuid() + "." + fileName.split(".").pop();
 
-        const newPost = await Post.create({
-          title,
-          category,
-          description,
-          thumbnail: newFilename,
-          creator: req.user.id,
-        });
+    const uploadParams = {
+      Bucket: process.env.AWS_S3_BUCKET_NAME,
+      Key: `thumbnail/${newFilename}`,
+      Body: thumbnail.data,
+      ContentType: mime.lookup(thumbnail.name) || "application/octet-stream",
+      ACL: "private",
+    };
 
-        if (!newPost) {
-          return next(new HttpError("Post couldn't be created", 422));
-        }
+    try {
+      await s3Client.send(new PutObjectCommand(uploadParams));
+    } catch (err) {
+      console.error("Error uploading thumbnail to S3:", err);
+      throw new HttpError("Error uploading thumbnail to S3", 500);
+    }
 
-        const currentUser = await User.findById(req.user.id);
-        const userPostCount = currentUser.posts + 1;
-        await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+    const newPost = await Post.create({
+      title,
+      category,
+      description,
+      thumbnail: `thumbnail/${newFilename}`,
+      creator: req.user.id,
+    });
 
-        res.status(201).json(newPost);
-      }
-    );
+    if (!newPost) {
+      return next(new HttpError("Post couldn't be created", 422));
+    }
+
+    const currentUser = await User.findById(req.user.id);
+    const userPostCount = currentUser.posts + 1;
+    await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+
+    res.status(201).json(newPost);
   } catch (error) {
     return next(new HttpError(error));
   }
 };
 
-//-------------------- GET ALL POST
+//-------------------- GET ALL POST------------------------------
 // GET : api/posts
 // PROTECTED
 
@@ -120,14 +105,26 @@ const getPosts = async (req, res, next) => {
   try {
     console.log("in tyr ");
     const posts = await Post.find().sort({ updatedAt: -1 });
-    console.log("after post");
-    res.status(200).json(posts);
+    const postsWithUrls = await Promise.all(
+      posts.map(async (post) => {
+        if (post.thumbnail) {
+          const thumbnailURL = await getObjectURL(post.thumbnail);
+          return {
+            ...post.toObject(),
+            thumbnailURL,
+          };
+        }
+        return post.toObject();
+      })
+    );
+
+    res.status(200).json(postsWithUrls);
   } catch (error) {
     return next(new HttpError(error));
   }
 };
 
-//-------------------- GET SINGLE POST
+//-------------------- GET SINGLE POST ---------------------
 // GET : api/posts/:id
 // UNPROTECTED
 
@@ -138,11 +135,15 @@ const getSinglePost = async (req, res, next) => {
     const postId = req.params.id;
     console.log("first");
     const post = await Post.findById(postId);
-    console.log("second");
-    if (!post) {
-      return next(new HttpError("Post not found.", 404));
+    let thumbnailURL = null;
+    if (post.thumbnail) {
+      thumbnailURL = await getObjectURL(post.thumbnail);
     }
-    res.status(200).json(post);
+
+    res.status(200).json({
+      ...post.toObject(),
+      thumbnailURL,
+    });
   } catch (error) {
     return next(new HttpError(error));
   }
@@ -264,21 +265,18 @@ const deletePost = async (req, res, next) => {
     if (req.user.id == post.creator) {
       console.log("in delete 1");
       // delete thumbnail from uploads folder
-      fs.unlink(
-        path.join(__dirname, "../uploads", fileName),
-        async (err) => {
-          if (err) {
-            return next(new HttpError(err));
-          } else {
-            await Post.findByIdAndDelete(postId);
-            // find user and reduce post Count by 1
-            const currrentUser = await User.findById(req.user.id);
-            const userPostCount = currrentUser?.posts - 1;
-            if (userPostCount < 0) userPostCount = 0;
-            await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
-          }
+      fs.unlink(path.join(__dirname, "../uploads", fileName), async (err) => {
+        if (err) {
+          return next(new HttpError(err));
+        } else {
+          await Post.findByIdAndDelete(postId);
+          // find user and reduce post Count by 1
+          const currrentUser = await User.findById(req.user.id);
+          const userPostCount = currrentUser?.posts - 1;
+          if (userPostCount < 0) userPostCount = 0;
+          await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
         }
-      );
+      });
     } else {
       return next(new HttpError("post couldn't be deleted", 403));
     }
