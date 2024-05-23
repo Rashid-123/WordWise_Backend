@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const User = require("../models/userModel");
+const Post = require("../models/postModel");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
 const mime = require("mime-types");
@@ -308,6 +309,47 @@ const getAuthors = async (req, res, next) => {
   }
 };
 
+//////////////////////////////////////////////////////////////////////////////////
+//------------------- ALL BOOKMARKED POSTS ------------------------------
+const getBookmarkedPosts = async (req, res, next) => {
+  const userId = req.params.id;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+
+    const bookmarkedPosts = await Promise.all(
+      user.bookmarks.map(async (postId) => {
+        const post = await Post.findById(postId);
+        if (!post) {
+          return null;
+        }
+
+        const thumbnailUrl = await getObjectURL(post.thumbnail, {
+          expiresIn: 3600,
+        });
+
+        return {
+          ...post.toObject(),
+          thumbnailUrl,
+        };
+      })
+    );
+
+    // Filter out any null values (if any posts were not found)
+    const validBookmarkedPosts = bookmarkedPosts.filter(
+      (post) => post !== null
+    );
+
+    res.status(200).json({ bookmarks: validBookmarkedPosts });
+  } catch (error) {
+    return next(
+      new HttpError("Fetching bookmarks failed, please try again", 500)
+    );
+  }
+};
 module.exports = {
   registerUser,
   loginUser,
@@ -315,4 +357,5 @@ module.exports = {
   changeAvatar,
   editUser,
   getAuthors,
+  getBookmarkedPosts,
 };

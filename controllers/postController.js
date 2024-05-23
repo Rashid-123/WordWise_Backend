@@ -227,15 +227,14 @@ const editPost = async (req, res, next) => {
     } else {
       // get old post from database;
       const oldPost = await Post.findById(postId);
-      //delete old thumbnail from uploa
-      fs.unlink(
-        path.join(__dirname, "../uploads", oldPost.thumbnail),
-        async (err) => {
-          if (err) {
-            return next(new HttpError(err));
-          }
-        }
-      );
+      //delete old thumbnail from AWS S3
+      if (oldPost.thumbnail) {
+        const deleteParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: oldPost.thumbnail,
+        };
+        await s3Client.send(new DeleteObjectCommand(deleteParams));
+      }
       // upload new Thumbnail
       const { thumbnail } = req.files;
       // check file size;
@@ -244,28 +243,30 @@ const editPost = async (req, res, next) => {
           new HttpError("Thumbnail too big. Should be less than 2mb")
         );
       }
-      fileName = thumbnail.name;
-      let splittedFilename = fileName.split(".");
-      newFilename =
-        splittedFilename[0] +
-        uuid() +
-        "." +
-        splittedFilename[splittedFilename.length - 1];
-      thumbnail.mv(
-        path.join(__dirname, "../uploads", newFilename),
-        async (err) => {
-          if (err) {
-            return next(new HttpError(err));
-          }
-        }
-      );
+      const fileName = thumbnail.name;
+      const newFilename =
+        fileName.split(".")[0] + uuid() + "." + fileName.split(".").pop();
+
+      const uploadParams = {
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: `thumbnail/${newFilename}`,
+        Body: thumbnail.data,
+        ContentType: mime.lookup(thumbnail.name) || "application/octet-stream",
+        ACL: "private",
+      };
+
+      try {
+        await s3Client.send(new PutObjectCommand(uploadParams));
+      } catch (err) {
+        console.error("Error uploading thumbnail to S3:", err);
+        throw new HttpError("Error uploading thumbnail to S3", 500);
+      }
       updatedPost = await Post.findByIdAndUpdate(
         postId,
-        { title, category, description, thumbnail: newFilename },
+        { title, category, description, thumbnail: `thumbnail/${newFilename}` },
         { new: true }
       );
     }
-
     //
     if (!updatedPost) {
       return next(new HttpError("couldn't update post", 400));
@@ -288,25 +289,35 @@ const deletePost = async (req, res, next) => {
 
     const post = await Post.findById(postId);
     const fileName = post?.thumbnail;
+
     if (req.user.id == post.creator) {
-      console.log("in delete 1");
-      // delete thumbnail from uploads folder
-      fs.unlink(path.join(__dirname, "../uploads", fileName), async (err) => {
-        if (err) {
-          return next(new HttpError(err));
-        } else {
-          await Post.findByIdAndDelete(postId);
-          // find user and reduce post Count by 1
-          const currrentUser = await User.findById(req.user.id);
-          const userPostCount = currrentUser?.posts - 1;
-          if (userPostCount < 0) userPostCount = 0;
-          await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+      // Delete thumbnail from AWS S3
+      if (fileName) {
+        const deleteParams = {
+          Bucket: process.env.AWS_S3_BUCKET_NAME,
+          Key: fileName,
+        };
+
+        try {
+          await s3Client.send(new DeleteObjectCommand(deleteParams));
+        } catch (err) {
+          return next(new HttpError("Failed to delete thumbnail from S3", 500));
         }
-      });
+      }
+
+      // Delete post from database
+      await Post.findByIdAndDelete(postId);
+
+      // Find user and reduce post count by 1
+      const currentUser = await User.findById(req.user.id);
+      let userPostCount = currentUser?.posts - 1;
+      if (userPostCount < 0) userPostCount = 0;
+      await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+
+      res.json(`Post ${postId} deleted successfully`);
     } else {
-      return next(new HttpError("post couldn't be deleted", 403));
+      return next(new HttpError("Post couldn't be deleted", 403));
     }
-    res.json(`post ${postId} deleted successfully`);
   } catch (error) {
     return next(new HttpError(error));
   }

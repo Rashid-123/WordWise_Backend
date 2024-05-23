@@ -5,6 +5,7 @@ const upload = require("express-fileupload");
 require("dotenv").config();
 const userRoutes = require("./routes/userRoutes");
 const postRoutes = require("./routes/postRoutes");
+const bookmarkRoutes = require("./routes/bookmarkRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 // Require statements at the top
@@ -17,15 +18,14 @@ app.use(
   })
 );
 
-app.use(express.json({ extended: true })); // Body parser middleware
-app.use(express.urlencoded({ extended: true })); // URL-encoded parser middleware
-app.use(upload()); // File upload middleware
-app.use("/uploads", express.static(__dirname + "/uploads")); // Static file serving middleware
-
+app.use(express.json({ extended: true }));
+app.use(express.urlencoded({ extended: true }));
+app.use(upload());
+app.use("/uploads", express.static(__dirname + "/uploads"));
 // API routes
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
-
+app.use("/api/bookmarks", bookmarkRoutes);
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);

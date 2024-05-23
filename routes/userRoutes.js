@@ -7,6 +7,7 @@ const {
   changeAvatar,
   editUser,
   getAuthors,
+  getBookmarkedPosts,
 } = require("../controllers/userControllers");
 const authMiddleware = require("../middleware/authMiddleware");
 // const { route } = require("./userRoutes");
@@ -19,5 +20,6 @@ router.get("/:id", getUser);
 router.get("/", getAuthors);
 router.post("/change-avatar", authMiddleware, changeAvatar);
 router.patch("/edit-user", authMiddleware, editUser);
+router.get("/bookmarkedPost/:id", authMiddleware, getBookmarkedPosts);
 
 module.exports = router;
