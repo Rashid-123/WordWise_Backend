@@ -11,12 +11,17 @@ const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 // Require statements at the top
 const app = express();
 
-app.use(
-  cors({
-    origin: "http://localhost:3000",
-    credentials: true,
-  })
-);
+const allowedOrigins = [
+  "http://localhost:3000", // Development environment
+  "https://word-wise-frontend.vercel.app", // Vercel domain
+];
+
+const corsOptions = {
+  origin: allowedOrigins,
+  credentials: true, // Allow cookies to be sent with requests
+};
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
