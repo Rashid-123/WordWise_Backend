@@ -4,7 +4,7 @@ const User = require("../models/userModel");
 
 const addBookmark = async (req, res, next) => {
   const { userId, postId } = req.body;
-
+  console.log("in book");
   try {
     const user = await User.findById(userId);
     if (!user) {

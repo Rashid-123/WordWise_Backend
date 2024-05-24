@@ -327,13 +327,13 @@ const getBookmarkedPosts = async (req, res, next) => {
           return null;
         }
 
-        const thumbnailUrl = await getObjectURL(post.thumbnail, {
+        const thumbnailURL = await getObjectURL(post.thumbnail, {
           expiresIn: 3600,
         });
 
         return {
           ...post.toObject(),
-          thumbnailUrl,
+          thumbnailURL,
         };
       })
     );
@@ -343,13 +343,14 @@ const getBookmarkedPosts = async (req, res, next) => {
       (post) => post !== null
     );
 
-    res.status(200).json({ bookmarks: validBookmarkedPosts });
+    res.status(200).json(validBookmarkedPosts);
   } catch (error) {
     return next(
       new HttpError("Fetching bookmarks failed, please try again", 500)
     );
   }
 };
+
 module.exports = {
   registerUser,
   loginUser,
