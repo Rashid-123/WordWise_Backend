@@ -1,5 +1,6 @@
 const Post = require("../models/postModel");
 const User = require("../models/userModel");
+const Admin = require("../models/adminModel");
 // const { post } = require("../routes/postRoutes");
 const path = require("path");
 const fs = require("fs");
@@ -203,7 +204,7 @@ const getUserPosts = async (req, res, next) => {
   }
 };
 
-//-------------------- EDIT POST
+//-------------------- EDIT POST -----------------------------------
 // PATCH : api/posts/:id
 // PROTECTED
 const editPost = async (req, res, next) => {
@@ -276,7 +277,7 @@ const editPost = async (req, res, next) => {
     return next(new HttpError(error));
   }
 };
-//-------------------- DELETE POST ---------------
+//----------------------------- DELETE POST --------------------------------------
 // DELETE : api/posts/:id
 // PROTECTED
 
@@ -322,6 +323,26 @@ const deletePost = async (req, res, next) => {
     return next(new HttpError(error));
   }
 };
+/////////////////////////////////////////////////////
+//---------- Get Featured post ---------------------
+const getFeaturedPost = async (req, res, next) => {
+  try {
+    const admin = await Admin.findOne();
+    const post = await Post.findById(admin.featured);
+    //
+    let thumbnailURL = null;
+    if (post.thumbnail) {
+      thumbnailURL = await getObjectURL(post.thumbnail);
+    }
+
+    res.status(200).json({
+      ...post.toObject(),
+      thumbnailURL,
+    });
+  } catch (error) {
+    console.log(error);
+  }
+};
 
 module.exports = {
   createPost,
@@ -331,4 +352,5 @@ module.exports = {
   getUserPosts,
   editPost,
   deletePost,
+  getFeaturedPost,
 };

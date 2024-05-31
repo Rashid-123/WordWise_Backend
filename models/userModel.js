@@ -7,6 +7,7 @@ const userSchema = new Schema({
   avatar: { type: String },
   posts: { type: Number, default: 0 },
   bookmarks: [{ type: Schema.Types.ObjectId, ref: "Post" }],
+  reports: [{ type: Schema.Types.ObjectId, ref: "Post" }],
 });
 
 module.exports = model("user", userSchema);

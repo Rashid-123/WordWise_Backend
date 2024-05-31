@@ -8,6 +8,7 @@ const {
   getUserPosts,
   editPost,
   deletePost,
+  getFeaturedPost,
   removeEventListener,
 } = require("../controllers/postController");
 
@@ -22,5 +23,5 @@ router.patch("/:id", editPost);
 router.get("/categories/:category", getCatPosts);
 router.get("/users/:id", authMiddleware, getUserPosts);
 router.delete("/:id", authMiddleware, deletePost);
-
+router.get("/getfeatured", getFeaturedPost);
 module.exports = router;

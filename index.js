@@ -5,7 +5,7 @@ const upload = require("express-fileupload");
 require("dotenv").config();
 const userRoutes = require("./routes/userRoutes");
 const postRoutes = require("./routes/postRoutes");
-const bookmarkRoutes = require("./routes/bookmarkRoutes");
+const adminRoutes = require("./routes/adminRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
 // Require statements at the top
@@ -30,7 +30,8 @@ app.use("/uploads", express.static(__dirname + "/uploads"));
 // API routes
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
-app.use("/api/bookmarks", bookmarkRoutes);
+// app.use("/api/bookmarks", bookmarkRoutes);
+app.use("/api/admin", adminRoutes);
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);

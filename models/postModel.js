@@ -5,7 +5,7 @@ const postSchema = new Schema(
     title: { type: String, required: true },
     category: {
       type: String,
-      eum: [
+      enum: [
         "Agriculture",
         "Business",
         "Education",

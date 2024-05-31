@@ -1,7 +1,9 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const User = require("../models/userModel");
 const Post = require("../models/postModel");
+const Admin = require("../models/adminModel");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
 const mime = require("mime-types");
@@ -118,9 +120,43 @@ const loginUser = async (req, res, next) => {
     );
   }
 };
+//-----------------------------------------------------------------
+//----------------- LOGIN AS ADMIN ---------------------
+// GET: api/users/login/admin
+const loginAdmin = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
 
+    if (!email || !password) {
+      return next(new HttpError("fill in all fields", 422));
+    }
+
+    const newEmail = email.toLowerCase();
+
+    if (newEmail !== process.env.ADMIN_EMAIL) {
+      return next(new HttpError("Please enter correct email", 422));
+    }
+
+    if (password !== process.env.ADMIN_PASSWORD) {
+      return next(new HttpError("Invalid Password", 422));
+    }
+
+    const user = await User.findOne({ email: newEmail });
+    if (!user) {
+      return next(new HttpError("Admin Not Found"));
+    }
+
+    const { _id: id, name } = user;
+    console.log("second");
+    const token = jwt.sign({ id, name }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+    console.log("third");
+    res.status(200).json({ token, id, name });
+  } catch (error) {}
+};
 // //-------------------------------------------------------
-// //---------------- USER PROFILE ------------
+// //---------------- USER PROFILE -------------------------
 // // POST: api/users/:id
 // // ROTECTED
 const getUser = async (req, res, next) => {
@@ -292,7 +328,7 @@ const editUser = async (req, res, next) => {
 // UNPROTECTED
 const getAuthors = async (req, res, next) => {
   try {
-    const authors = await User.find().select("-password");
+    const authors = await User.find({ posts: { $gt: 0 } }).select("-password");
     const authorsWithAvatars = await Promise.all(
       authors.map(async (author) => {
         const authorObj = author.toObject();
@@ -306,6 +342,55 @@ const getAuthors = async (req, res, next) => {
     res.json(authorsWithAvatars);
   } catch (error) {
     return next(new HttpError(error));
+  }
+};
+///////////////////////////////////////////////////////////////////////////////////////
+//////////-------- ADD BOOKMARK ------------------------------------
+const addBookmark = async (req, res, next) => {
+  const { userId, postId } = req.body;
+  console.log("in book");
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return next(new HttpError("Post not found", 404));
+    }
+
+    if (!user.bookmarks.includes(postId)) {
+      user.bookmarks.push(postId);
+      await user.save();
+    }
+
+    res.status(200).json({ message: "Post bookmarked" });
+  } catch (error) {
+    return next(new HttpError("Bookmarking failed, please try again", 500));
+  }
+};
+//////////////////////////////////////////////////////////////////////////////
+//-------------- REMOVE BOOKMARK ------------------------------
+const removeBookmark = async (req, res, next) => {
+  const { userId, postId } = req.body;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+
+    user.bookmarks = user.bookmarks.filter(
+      (bookmark) => bookmark.toString() !== postId
+    );
+    await user.save();
+
+    res.status(200).json({ message: "Bookmark removed" });
+  } catch (error) {
+    return next(
+      new HttpError("Removing bookmark failed, please try again", 500)
+    );
   }
 };
 
@@ -350,6 +435,121 @@ const getBookmarkedPosts = async (req, res, next) => {
     );
   }
 };
+///////////////////////////////////////////////////////////////////////////////////////
+//--------------------- ADD REPORT --------------------------------------------
+const addReport = async (req, res, next) => {
+  console.log("in addReport");
+  const { postId, userId } = req.body;
+  console.log(postId, userId);
+
+  if (!postId || !userId) {
+    return res
+      .status(400)
+      .json({ message: "Post ID and User ID are required" });
+  }
+
+  try {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const admin = await Admin.findOne().session(session);
+    if (!admin) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Admin not found" });
+    }
+    console.log("Admin found:", admin);
+
+    // line 463
+    const newReport = {
+      reportBy: new mongoose.Types.ObjectId(userId),
+      post: new mongoose.Types.ObjectId(postId),
+    };
+    console.log("New Report:", newReport);
+
+    admin.reports.push(newReport);
+    console.log("Report added to admin");
+
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.reports.push(new mongoose.Types.ObjectId(postId));
+    console.log("Report added to user");
+
+    await admin.save({ session });
+    console.log("Admin saved");
+
+    await user.save({ session });
+    console.log("User saved");
+
+    await session.commitTransaction();
+    session.endSession();
+    console.log("Transaction committed");
+
+    res
+      .status(200)
+      .json({ message: "Report added successfully", report: newReport });
+  } catch (error) {
+    console.error("Error adding report:", error);
+    res.status(500).json({ message: "Failed to add report", error });
+  }
+};
+
+///////////////////////////////////////////////////////////////////////
+////----------- REMOVE REPORT ----------------------------------
+const removeReport = async (req, res, next) => {
+  const { postId, userId } = req.body;
+
+  if (!postId || !userId) {
+    return res
+      .status(400)
+      .json({ message: "Post ID and User ID are required" });
+  }
+
+  try {
+    const session = await mongoose.startSession();
+    session.startTransaction();
+
+    const admin = await Admin.findOne().session(session);
+    if (!admin) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Admin not found" });
+    }
+
+    const reportIndex = admin.reports.findIndex(
+      (report) =>
+        report.post.toString() === postId &&
+        report.reportBy.toString() === userId
+    );
+
+    if (reportIndex === -1) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    admin.reports.splice(reportIndex, 1);
+
+    const user = await User.findById(userId).session(session);
+    if (!user) {
+      await session.abortTransaction();
+      return res.status(404).json({ message: "User not found" });
+    }
+    user.reports = user.reports.filter(
+      (report) => report.toString() !== postId
+    );
+
+    await admin.save({ session });
+    await user.save({ session });
+
+    await session.commitTransaction();
+    session.endSession();
+
+    res.status(200).json({ message: "Report removed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to remove report", error });
+  }
+};
 
 module.exports = {
   registerUser,
@@ -359,4 +559,9 @@ module.exports = {
   editUser,
   getAuthors,
   getBookmarkedPosts,
+  loginAdmin,
+  removeBookmark,
+  addBookmark,
+  addReport,
+  removeReport,
 };
