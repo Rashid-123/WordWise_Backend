@@ -4,6 +4,7 @@ const mongoose = require("mongoose");
 const User = require("../models/userModel");
 const Post = require("../models/postModel");
 const Admin = require("../models/adminModel");
+const nodemailer = require("nodemailer");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
 const mime = require("mime-types");
@@ -35,6 +36,59 @@ async function getObjectURL(key) {
   const url = await getSignedUrl(s3Client, command);
   return url;
 }
+//------------------------------------------------------------------------
+//----------------- SEND OPT -----------------------------------------
+const otpStorage = {};
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.SENDER_EMAIL,
+    pass: process.env.MAIL_PASS,
+  },
+});
+//---------------------------------------------------------
+//
+const sendOTP = async (req, res, next) => {
+  try {
+    const email = req.body.email?.trim().toLowerCase();
+    if (!email) {
+      return next(new HttpError("Please Enter an Email"));
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return next(new HttpError("Invalid email address", 422));
+    }
+
+    const emailExists = await User.findOne({ email: email });
+    if (emailExists) {
+      return next(new HttpError("Email already exists.", 422));
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    otpStorage[email] = otp;
+
+    const mailOptions = {
+      from: process.env.SENDER_EMAIL,
+      to: email,
+      subject: "OTP verification for WordWise",
+      html: `<div style="background-color: #f0f0f0; padding: 20px; margin: auto ;">
+        <h1 style="color: #333;">OTP from <strong>WordWise</strong></h1>
+        <p style="font-size: 18px;">Your OTP code is <strong style="color: blue: ">${otp}</strong>.</p>
+        <p style="font-size: 14px; color: #888;">This OTP is valid for a limited time.</p>
+      </div>`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        return res.status(500).send(error.toString());
+      }
+      res.status(200).send("OTP sent");
+    });
+  } catch (error) {
+    return next(new HttpError("Failed to send OTP", 500));
+  }
+};
+
 //--------------------------------------------------------------
 //----------------------- REGISTER A NEW USER -------------------
 // POST: api/users/register
@@ -43,8 +97,8 @@ async function getObjectURL(key) {
 const registerUser = async (req, res, next) => {
   console.log("register user is running");
   try {
-    const { name, email, password, password2 } = req.body;
-    if (!name || !email || !password) {
+    const { name, email, password, password2, otp } = req.body;
+    if (!name || !email || !password || !otp) {
       return next(new HttpError("Fill in all fields", 422));
     }
 
@@ -67,6 +121,14 @@ const registerUser = async (req, res, next) => {
     if (password !== password2) {
       return next(new HttpError("Passwords do not match.", 422));
     }
+
+    const storedOTP = otpStorage[newEmail];
+    if (!storedOTP || parseInt(otp) !== storedOTP) {
+      return next(new HttpError("Invalid OTP.", 422));
+    }
+
+    // Clear the OTP from storage after successful registration
+    delete otpStorage[newEmail];
 
     const salt = await bcrypt.genSalt(10);
     const hashedPass = await bcrypt.hash(password, salt);
@@ -551,6 +613,139 @@ const removeReport = async (req, res, next) => {
   }
 };
 
+//////////////////////////////////////////////////////////////////////
+//------------------------ ADD LIKE -----------------------------------
+
+const add_like = async (req, res, next) => {
+  console.log("in like");
+  const { userId, postId } = req.body;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+
+    const post = await Post.findById(postId);
+    if (!post) {
+      return next(new HttpError("Post not found", 404));
+    }
+
+    if (!user.likes.includes(postId)) {
+      user.likes.push(postId);
+      await user.save();
+      // incres the post count here
+      post.total_likes += 1;
+      await post.save();
+    }
+
+    res.status(200).json({ message: "Post liked" });
+  } catch (error) {
+    return next(new HttpError("Liking failed, please try again", 500));
+  }
+};
+
+/////////////////////////////////////////////////////////////////////////////
+//-------------------------- REMOVE LIKES -----------------------------------
+
+const remove_like = async (req, res, next) => {
+  const { userId, postId } = req.body;
+
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(new HttpError("User not found", 404));
+    }
+    const post = await Post.findById(postId);
+    if (!post) {
+      return next(new HttpError("Post not found", 404));
+    }
+
+    if (!user.likes.includes(postId)) {
+      return next(new HttpError("Post not liked by user", 404));
+    }
+    user.likes = user.likes.filter((likes) => likes.toString() !== postId);
+    await user.save();
+    //
+    if (post.total_likes > 0) {
+      post.total_likes -= 1;
+      await post.save();
+    }
+
+    res.status(200).json({ message: "Like removed" });
+  } catch (error) {
+    return next(
+      new HttpError("Removing bookmark failed, please try again", 500)
+    );
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////
+//--------------------- FOLLOW ----------------------------------
+const follow = async (req, res, next) => {
+  const { user1, user2 } = req.body;
+
+  try {
+    // Find user1 and user2
+    const userToFollow = await User.findById(user2);
+    const currentUser = await User.findById(user1);
+
+    if (!userToFollow || !currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Add user2 to the following list of user1
+    if (!currentUser.following.includes(user2)) {
+      currentUser.following.push(user2);
+    }
+
+    // Add user1 to the followers list of user2
+    if (!userToFollow.followers.includes(user1)) {
+      userToFollow.followers.push(user1);
+    }
+
+    await currentUser.save();
+    await userToFollow.save();
+
+    res.status(200).json({ message: "User followed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "An error occurred", error });
+  }
+};
+
+//////////////////////////////////////////////////////////////////////////
+//-------------------- UNFOLLOW -------------------------------------
+const unfollow = async (req, res, next) => {
+  const { user1, user2 } = req.body;
+
+  try {
+    // Find user1 and user2
+    const userToUnfollow = await User.findById(user2);
+    const currentUser = await User.findById(user1);
+
+    if (!userToUnfollow || !currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Remove user2 from the following list of user1
+    currentUser.following = currentUser.following.filter(
+      (userId) => userId.toString() !== user2
+    );
+
+    // Remove user1 from the followers list of user2
+    userToUnfollow.followers = userToUnfollow.followers.filter(
+      (userId) => userId.toString() !== user1
+    );
+
+    await currentUser.save();
+    await userToUnfollow.save();
+
+    res.status(200).json({ message: "User unfollowed successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "An error occurred", error });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
@@ -564,4 +759,9 @@ module.exports = {
   addBookmark,
   addReport,
   removeReport,
+  sendOTP,
+  add_like,
+  remove_like,
+  follow,
+  unfollow,
 };

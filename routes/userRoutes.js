@@ -13,6 +13,11 @@ const {
   addBookmark,
   addReport,
   removeReport,
+  sendOTP,
+  add_like,
+  remove_like,
+  follow,
+  unfollow,
 } = require("../controllers/userControllers");
 const authMiddleware = require("../middleware/authMiddleware");
 // const { route } = require("./userRoutes");
@@ -30,6 +35,11 @@ router.post("/addreport", authMiddleware, addReport);
 router.post("/removeReport", authMiddleware, removeReport);
 router.post("/addBookmark", authMiddleware, addBookmark);
 router.post("/removeBookmark", authMiddleware, removeBookmark);
+router.post("/sendOTP", sendOTP);
+router.post("/addLike", authMiddleware, add_like);
+router.post("/removeLike", authMiddleware, remove_like);
+router.post("/follow", authMiddleware, follow);
+router.post("/unfollow", authMiddleware, unfollow);
 //
 router.post("/login/admin", loginAdmin);
 

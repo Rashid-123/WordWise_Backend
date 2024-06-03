@@ -21,7 +21,7 @@ router.get("/", getPosts);
 router.post("/:id", getSinglePost);
 router.patch("/:id", editPost);
 router.get("/categories/:category", getCatPosts);
-router.get("/users/:id", authMiddleware, getUserPosts);
+router.get("/users/:id", getUserPosts);
 router.delete("/:id", authMiddleware, deletePost);
 router.get("/getfeatured", getFeaturedPost);
 module.exports = router;
