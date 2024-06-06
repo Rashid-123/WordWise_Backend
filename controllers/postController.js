@@ -42,7 +42,7 @@ async function getObjectURL(key) {
 
 const createPost = async (req, res, next) => {
   try {
-    let { title, category, description } = req.body;
+    let { title, shortDescription, category, description } = req.body;
     if (!title || !category || !description || !req.files) {
       return next(
         new HttpError("Fill in all fields and choose thumbnail", 422)
@@ -77,6 +77,7 @@ const createPost = async (req, res, next) => {
 
     const newPost = await Post.create({
       title,
+      shortDescription,
       category,
       description,
       thumbnail: `thumbnail/${newFilename}`,
@@ -213,16 +214,16 @@ const editPost = async (req, res, next) => {
     let newFilename;
     let updatedPost;
     const postId = req.params.id;
-    let { title, category, description } = req.body;
+    let { title, shortDescription, category, description } = req.body;
 
-    if (!title || !category || description.length < 12) {
+    if (!title || !category || !shortDescription || description.length < 12) {
       return next(new HttpError("Fill in all fields", 422));
     }
 
     if (!req.files) {
       updatedPost = await Post.findByIdAndUpdate(
         postId,
-        { title, category, description },
+        { title, shortDescription, category, description },
         { new: true }
       );
     } else {
@@ -264,7 +265,13 @@ const editPost = async (req, res, next) => {
       }
       updatedPost = await Post.findByIdAndUpdate(
         postId,
-        { title, category, description, thumbnail: `thumbnail/${newFilename}` },
+        {
+          title,
+          shortDescription,
+          category,
+          description,
+          thumbnail: `thumbnail/${newFilename}`,
+        },
         { new: true }
       );
     }

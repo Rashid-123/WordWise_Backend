@@ -8,16 +8,22 @@ const postRoutes = require("./routes/postRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const { notFound, errorHandler } = require("./middleware/errorMiddleware");
 
-// Require statements at the top
 const app = express();
 
 const allowedOrigins = [
   "http://localhost:3000", // Development environment
-  "https://word-wise-frontend.vercel.app", // Vercel domain
+  "https://word-wise-frontend.vercel.app", // Primary Vercel domain
+  "https://word-wise-frontend-e70f9zqfg-shadan-rashids-projects.vercel.app", // Deployment specific Vercel domain
 ];
 
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    if (allowedOrigins.includes(origin) || !origin) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
   credentials: true, // Allow cookies to be sent with requests
 };
 
@@ -27,11 +33,13 @@ app.use(express.json({ extended: true }));
 app.use(express.urlencoded({ extended: true }));
 app.use(upload());
 app.use("/uploads", express.static(__dirname + "/uploads"));
+
 // API routes
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
 // app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/admin", adminRoutes);
+
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
