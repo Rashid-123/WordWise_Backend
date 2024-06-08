@@ -12,8 +12,8 @@ const app = express();
 
 const allowedOrigins = [
   "http://localhost:3000", // Development environment
-  "https://word-wise-frontend.vercel.app", // Primary Vercel domain
-  "https://word-wise-frontend-e70f9zqfg-shadan-rashids-projects.vercel.app", // Deployment specific Vercel domain
+  "https://word-wise-psi.vercel.app", // Primary Vercel domain
+  "https://word-wise-gvharzz4b-shadan-rashids-projects.vercel.app", // Deployment specific Vercel domain
 ];
 
 const corsOptions = {
