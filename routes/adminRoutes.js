@@ -7,6 +7,7 @@ const {
   getAllReports,
   getUser,
   addFeaturedPost,
+  deleteReport,
 } = require("../controllers/adminControllers");
 
 const authMiddleware = require("../middleware/authMiddleware");
@@ -19,5 +20,6 @@ router.post("/addreports", addReports);
 router.get("/getReports", getAllReports);
 router.post("/user", getUser);
 router.post("/featured", addFeaturedPost);
+router.delete("/clearReport", deleteReport);
 
 module.exports = router;

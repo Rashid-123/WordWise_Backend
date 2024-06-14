@@ -251,6 +251,8 @@ const getUser = async (req, res, next) => {
 ///////////////////////////////////////////////////////
 ///////// -------------- CHANGE USER AVATAR --------------------------
 
+const sharp = require("sharp");
+
 const changeAvatar = async (req, res, next) => {
   try {
     if (!req.files || !req.files.avatar) {
@@ -259,11 +261,16 @@ const changeAvatar = async (req, res, next) => {
 
     const { avatar } = req.files;
 
-    // Check file size
-    if (avatar.size > 500000) {
-      return next(
-        new HttpError("Profile picture too big. Should be less than 500KB", 422)
-      );
+    // Compress the image if it exceeds the size limit after compression
+    let compressedImageBuffer;
+    if (avatar.size > 1000000) {
+      // 1MB limit after compression
+      compressedImageBuffer = await sharp(avatar.data)
+        .resize(1024, 1024, { fit: "inside" }) // Resize to fit within 1024x1024
+        .jpeg({ quality: 70 }) // Compress to JPEG with 80% quality
+        .toBuffer();
+    } else {
+      compressedImageBuffer = avatar.data;
     }
 
     // Find user from database
@@ -299,7 +306,7 @@ const changeAvatar = async (req, res, next) => {
     const uploadParams = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: `avatar/${newFilename}`,
-      Body: avatar.data,
+      Body: compressedImageBuffer,
       ContentType: mime.lookup(avatar.name) || "application/octet-stream",
       ACL: "private",
     };

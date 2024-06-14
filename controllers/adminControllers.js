@@ -153,6 +153,32 @@ const getAllReports = async (req, res, next) => {
     );
   }
 };
+
+///////////////////////////////////////////////////////////////////
+// ------------------- DELETER REPORT --------------------------------
+const deleteReport = async (req, res, next) => {
+  const { userId, postId, reportId } = req.body;
+
+  try {
+    // Remove postId from user's reports array
+    await User.findByIdAndUpdate(
+      userId,
+      { $pull: { reports: postId } },
+      { new: true }
+    );
+
+    // Remove the corresponding report from the admin's reports array
+    const admin = await Admin.findOneAndUpdate(
+      { "reports._id": reportId },
+      { $pull: { reports: { _id: reportId } } },
+      { new: true }
+    );
+
+    res.status(200).json(admin.reports);
+  } catch (error) {
+    res.status(500).json({ message: "Error removing report", error });
+  }
+};
 //////////////////////////////////////////////////////////////////
 //---------------- User -------------------------------------
 const getUser = async (req, res, next) => {
@@ -187,6 +213,7 @@ module.exports = {
   CreateAdmin,
   addReports,
   getAllReports,
+  deleteReport,
   getUser,
   addFeaturedPost,
 };

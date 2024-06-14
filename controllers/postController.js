@@ -3,6 +3,7 @@ const User = require("../models/userModel");
 const Admin = require("../models/adminModel");
 // const { post } = require("../routes/postRoutes");
 const path = require("path");
+const sharp = require("sharp");
 const fs = require("fs");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
@@ -50,9 +51,35 @@ const createPost = async (req, res, next) => {
     }
 
     const { thumbnail } = req.files;
-    if (thumbnail.size > 2000000) {
+
+    let compressedImageBuffer;
+    try {
+      compressedImageBuffer = await sharp(thumbnail.data)
+        .resize({ width: 800 }) // Adjust the size as needed
+        .jpeg({ quality: 50 }) // Start with a lower quality to ensure file size reduction
+        .toBuffer();
+
+      // If the compressed image is still larger than 2MB, adjust quality iteratively
+      let quality = 50;
+      while (compressedImageBuffer.length > 2000000 && quality > 10) {
+        quality -= 10;
+        compressedImageBuffer = await sharp(thumbnail.data)
+          .resize({ width: 800 }) // Adjust the size as needed
+          .jpeg({ quality }) // Reduce quality
+          .toBuffer();
+      }
+    } catch (err) {
+      console.error("Error compressing image:", err);
+      return next(new HttpError("Error compressing image", 500));
+    }
+
+    // Check final file size
+    if (compressedImageBuffer.length > 2000000) {
       return next(
-        new HttpError("Thumbnail too big. File should be less than 2mb", 422)
+        new HttpError(
+          "Thumbnail too big after compression. Should be less than 2MB",
+          422
+        )
       );
     }
 
@@ -63,7 +90,7 @@ const createPost = async (req, res, next) => {
     const uploadParams = {
       Bucket: process.env.AWS_S3_BUCKET_NAME,
       Key: `thumbnail/${newFilename}`,
-      Body: thumbnail.data,
+      Body: compressedImageBuffer,
       ContentType: mime.lookup(thumbnail.name) || "application/octet-stream",
       ACL: "private",
     };
@@ -94,7 +121,8 @@ const createPost = async (req, res, next) => {
 
     res.status(201).json(newPost);
   } catch (error) {
-    return next(new HttpError(error));
+    console.error("Error creating post:", error);
+    return next(new HttpError(error.message, 500));
   }
 };
 
@@ -208,10 +236,9 @@ const getUserPosts = async (req, res, next) => {
 //-------------------- EDIT POST -----------------------------------
 // PATCH : api/posts/:id
 // PROTECTED
+
 const editPost = async (req, res, next) => {
   try {
-    let fileName;
-    let newFilename;
     let updatedPost;
     const postId = req.params.id;
     let { title, shortDescription, category, description } = req.body;
@@ -220,16 +247,20 @@ const editPost = async (req, res, next) => {
       return next(new HttpError("Fill in all fields", 422));
     }
 
-    if (!req.files) {
+    if (!req.files || !req.files.thumbnail) {
       updatedPost = await Post.findByIdAndUpdate(
         postId,
         { title, shortDescription, category, description },
         { new: true }
       );
     } else {
-      // get old post from database;
+      // Get old post from database
       const oldPost = await Post.findById(postId);
-      //delete old thumbnail from AWS S3
+      if (!oldPost) {
+        return next(new HttpError("Post not found", 404));
+      }
+
+      // Delete old thumbnail from AWS S3
       if (oldPost.thumbnail) {
         const deleteParams = {
           Bucket: process.env.AWS_S3_BUCKET_NAME,
@@ -237,22 +268,50 @@ const editPost = async (req, res, next) => {
         };
         await s3Client.send(new DeleteObjectCommand(deleteParams));
       }
-      // upload new Thumbnail
+
+      // Compress new thumbnail
       const { thumbnail } = req.files;
-      // check file size;
-      if (thumbnail.size > 2000000) {
+      let compressedImageBuffer;
+
+      try {
+        compressedImageBuffer = await sharp(thumbnail.data)
+          .resize({ width: 800 }) // Adjust the size as needed
+          .jpeg({ quality: 50 }) // Start with a lower quality to ensure file size reduction
+          .toBuffer();
+
+        // If the compressed image is still larger than 2MB, adjust quality iteratively
+        while (compressedImageBuffer.length > 2000000 && quality > 10) {
+          quality -= 10;
+          compressedImageBuffer = await sharp(thumbnail.data)
+            .resize({ width: 800 }) // Adjust the size as needed
+            .jpeg({ quality }) // Reduce quality
+            .toBuffer();
+        }
+      } catch (err) {
+        console.error("Error compressing image:", err);
+        return next(new HttpError("Error compressing image", 500));
+      }
+
+      // Check final file size
+      if (compressedImageBuffer.length > 2000000) {
         return next(
-          new HttpError("Thumbnail too big. Should be less than 2mb")
+          new HttpError(
+            "Thumbnail too big after compression. Should be less than 2MB",
+            422
+          )
         );
       }
+
+      // Upload new thumbnail
       const fileName = thumbnail.name;
-      const newFilename =
-        fileName.split(".")[0] + uuid() + "." + fileName.split(".").pop();
+      const newFilename = `${fileName.split(".")[0]}-${uuid()}.${fileName
+        .split(".")
+        .pop()}`;
 
       const uploadParams = {
         Bucket: process.env.AWS_S3_BUCKET_NAME,
         Key: `thumbnail/${newFilename}`,
-        Body: thumbnail.data,
+        Body: compressedImageBuffer,
         ContentType: mime.lookup(thumbnail.name) || "application/octet-stream",
         ACL: "private",
       };
@@ -263,6 +322,8 @@ const editPost = async (req, res, next) => {
         console.error("Error uploading thumbnail to S3:", err);
         throw new HttpError("Error uploading thumbnail to S3", 500);
       }
+
+      // Update post with new thumbnail
       updatedPost = await Post.findByIdAndUpdate(
         postId,
         {
@@ -275,15 +336,18 @@ const editPost = async (req, res, next) => {
         { new: true }
       );
     }
-    //
+
     if (!updatedPost) {
-      return next(new HttpError("couldn't update post", 400));
+      return next(new HttpError("Couldn't update post", 400));
     }
+
     res.status(200).json(updatedPost);
   } catch (error) {
-    return next(new HttpError(error));
+    console.error("Error editing post:", error);
+    return next(new HttpError(error.message, 500));
   }
 };
+
 //----------------------------- DELETE POST --------------------------------------
 // DELETE : api/posts/:id
 // PROTECTED
