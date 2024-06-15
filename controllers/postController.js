@@ -362,7 +362,7 @@ const deletePost = async (req, res, next) => {
     const post = await Post.findById(postId);
     const fileName = post?.thumbnail;
 
-    if (req.user.id == post.creator) {
+    if (req.user.id == post.creator || req.user.id === process.env.ADMIN_ID) {
       // Delete thumbnail from AWS S3
       if (fileName) {
         const deleteParams = {
@@ -381,11 +381,19 @@ const deletePost = async (req, res, next) => {
       await Post.findByIdAndDelete(postId);
 
       // Find user and reduce post count by 1
-      const currentUser = await User.findById(req.user.id);
-      let userPostCount = currentUser?.posts - 1;
-      if (userPostCount < 0) userPostCount = 0;
-      await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+      if (req.user.id === post.creator) {
+        const currentUser = await User.findById(req.user.id);
+        let userPostCount = currentUser?.posts - 1;
+        if (userPostCount < 0) userPostCount = 0;
+        await User.findByIdAndUpdate(req.user.id, { posts: userPostCount });
+      }
 
+      if (req.user.id === process.env.ADMIN_ID) {
+        const currentUser = await User.findById(post.creator);
+        let userPostCount = currentUser?.posts - 1;
+        if (userPostCount < 0) userPostCount = 0;
+        await User.findByIdAndUpdate(post.creator, { posts: userPostCount });
+      }
       res.json(`Post ${postId} deleted successfully`);
     } else {
       return next(new HttpError("Post couldn't be deleted", 403));

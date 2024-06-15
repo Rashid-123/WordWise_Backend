@@ -48,7 +48,7 @@ const transporter = nodemailer.createTransport({
 });
 //---------------------------------------------------------
 //
-const sendOTP = async (req, res, next) => {
+const OTP_for_Register = async (req, res, next) => {
   try {
     const email = req.body.email?.trim().toLowerCase();
     if (!email) {
@@ -84,6 +84,46 @@ const sendOTP = async (req, res, next) => {
       }
       res.status(200).send("OTP sent");
     });
+  } catch (error) {
+    return next(new HttpError("Failed to send OTP", 500));
+  }
+};
+//////////////////////////////////////////////////////////////////////
+//----------------- OTP For Login ---------------------------------
+const OTP_for_login = async (req, res, next) => {
+  try {
+    const email = req.body.email?.trim().toLowerCase();
+    if (!email) {
+      return next(new HttpError("Please Enter an Email"));
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return next(new HttpError("Invalid email address", 422));
+    }
+
+    const emailExists = await User.findOne({ email: email });
+    if (emailExists) {
+      const otp = Math.floor(100000 + Math.random() * 900000);
+      otpStorage[email] = otp;
+
+      const mailOptions = {
+        from: process.env.SENDER_EMAIL,
+        to: email,
+        subject: "OTP verification for WordWise Login",
+        html: `<div style="background-color: #f0f0f0; padding: 20px; margin: auto ;">
+        <h1 style="color: #333;">OTP from <strong>WordWise</strong> to login </h1>
+        <p style="font-size: 18px;">Your OTP code is <strong style="color: blue: ">${otp}</strong>.</p>
+        <p style="font-size: 14px; color: #888;">This OTP is valid for a limited time.</p>
+      </div>`,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          return res.status(500).send(error.toString());
+        }
+        res.status(200).send("OTP sent");
+      });
+    }
   } catch (error) {
     return next(new HttpError("Failed to send OTP", 500));
   }
@@ -175,6 +215,40 @@ const loginUser = async (req, res, next) => {
       expiresIn: "1d",
     });
     console.log("third");
+    res.status(200).json({ token, id, name });
+  } catch (error) {
+    return next(
+      new HttpError("Login Failed , please check your credentials", 422)
+    );
+  }
+};
+/////////////////////////////////////////////////////////////////////////////
+//------------------------ LOGIN USER WITH OTP --------------------------------
+const loginUser_with_OTP = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) {
+      return next(new HttpError("fill in all fields", 422));
+    }
+    //
+    const newEmail = email.toLowerCase();
+    const user = await User.findOne({ email: newEmail });
+
+    if (!user) {
+      return next(new HttpError("Invalid credentials", 422));
+    }
+    //
+    const storedOTP = otpStorage[newEmail];
+    if (!storedOTP || parseInt(otp) !== storedOTP) {
+      return next(new HttpError("Invalid OTP.", 422));
+    }
+
+    const { _id: id, name } = user;
+
+    const token = jwt.sign({ id, name }, process.env.JWT_SECRET, {
+      expiresIn: "1d",
+    });
+
     res.status(200).json({ token, id, name });
   } catch (error) {
     return next(
@@ -756,6 +830,7 @@ const unfollow = async (req, res, next) => {
 module.exports = {
   registerUser,
   loginUser,
+  loginUser_with_OTP,
   getUser,
   changeAvatar,
   editUser,
@@ -766,7 +841,8 @@ module.exports = {
   addBookmark,
   addReport,
   removeReport,
-  sendOTP,
+  OTP_for_Register,
+  OTP_for_login,
   add_like,
   remove_like,
   follow,

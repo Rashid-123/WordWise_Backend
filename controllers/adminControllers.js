@@ -112,7 +112,7 @@ const addReports = async (req, res, next) => {
 
   try {
     // Find the admin by ID
-    const admin = await Admin.findById(process.env.ADMIN_ID);
+    const admin = await Admin.findOne();
 
     if (!admin) {
       return next(new HttpError("Admin not found", 404));
@@ -140,7 +140,7 @@ const addReports = async (req, res, next) => {
 ////---------------- GET ALL REPORTS ------------------------------------------
 const getAllReports = async (req, res, next) => {
   try {
-    const admin = await Admin.findById(process.env.ADMIN_ID).select("reports");
+    const admin = await Admin.findOne().select("reports");
 
     if (!admin) {
       return next(new HttpError("Admin not found", 404));
