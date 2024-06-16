@@ -302,7 +302,7 @@ const getUser = async (req, res, next) => {
     if (!user) {
       return next(new HttpError("User not found", 404));
     }
-
+    console.log(user);
     let avatarURL;
     if (user.avatar) {
       avatarURL = await getObjectURL(user.avatar);
@@ -826,6 +826,52 @@ const unfollow = async (req, res, next) => {
     res.status(500).json({ message: "An error occurred", error });
   }
 };
+///////////////////////////////////////////////////////////////////////////
+//-------------- GET USER FOLLOWERS_FOLLOWING ------------------------
+const get_followers_following = async (req, res, next) => {
+  const userId = req.body.userId;
+
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required" });
+  }
+
+  try {
+    const user = await User.findById(userId)
+      .populate("followers")
+      .populate("following")
+      .exec(); // Ensure query execution
+
+    if (!user) {
+      return next(new Error("User not found", 404));
+    }
+
+    const followersData = await Promise.all(
+      user.followers.map(async (follower) => ({
+        _id: follower._id,
+        name: follower.name,
+        email: follower.email,
+        avatar: follower.avatar ? await getObjectURL(follower.avatar) : null,
+      }))
+    );
+
+    const followingData = await Promise.all(
+      user.following.map(async (following) => ({
+        _id: following._id,
+        name: following.name,
+        email: following.email,
+        avatar: following.avatar ? await getObjectURL(following.avatar) : null,
+      }))
+    );
+
+    res.status(200).json({
+      followers: followersData,
+      following: followingData,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 
 module.exports = {
   registerUser,
@@ -847,4 +893,5 @@ module.exports = {
   remove_like,
   follow,
   unfollow,
+  get_followers_following,
 };

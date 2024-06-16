@@ -20,6 +20,7 @@ const {
   remove_like,
   follow,
   unfollow,
+  get_followers_following,
 } = require("../controllers/userControllers");
 const authMiddleware = require("../middleware/authMiddleware");
 // const { route } = require("./userRoutes");
@@ -42,7 +43,7 @@ router.post("/removeReport", authMiddleware, removeReport);
 router.post("/addBookmark", authMiddleware, addBookmark);
 router.post("/removeBookmark", authMiddleware, removeBookmark);
 //
-
+router.post("/followers-followings", get_followers_following);
 //
 router.post("/addLike", authMiddleware, add_like);
 router.post("/removeLike", authMiddleware, remove_like);

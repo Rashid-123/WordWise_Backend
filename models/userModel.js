@@ -13,4 +13,4 @@ const userSchema = new Schema({
   followers: [{ type: Schema.Types.ObjectId, ref: "User" }],
 });
 
-module.exports = model("user", userSchema);
+module.exports = model("User", userSchema);
