@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { connect } = require("mongoose");
 const upload = require("express-fileupload");
+const { createClient } = require("redis"); // Redis client
 require("dotenv").config();
 const userRoutes = require("./routes/userRoutes");
 const postRoutes = require("./routes/postRoutes");
@@ -37,20 +38,33 @@ app.use("/uploads", express.static(__dirname + "/uploads"));
 // API routes
 app.use("/api/users", userRoutes);
 app.use("/api/posts", postRoutes);
-// app.use("/api/bookmarks", bookmarkRoutes);
 app.use("/api/admin", adminRoutes);
 
 // Error handling middleware
 app.use(notFound);
 app.use(errorHandler);
 
+// Connect to Redis
+const redisClient = createClient({
+  url: process.env.REDIS_URL, // Use Redis URL provided by Render
+});
+
+redisClient.on("error", (err) => {
+  console.error("Redis connection error:", err);
+});
+
 // Database connection and server listening
 connect(process.env.MONGO_URI)
-  .then(() => {
-    app.listen(5000, () => {
+  .then(async () => {
+    // Connect Redis client
+    await redisClient.connect();
+
+    app.listen(process.env.PORT || 5000, () => {
       console.log(`Server started on port ${process.env.PORT || 5000}`);
     });
   })
   .catch((error) => {
     console.error("Database connection error:", error);
   });
+
+module.exports = redisClient; // Export Redis client if needed in other files

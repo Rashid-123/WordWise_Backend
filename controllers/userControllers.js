@@ -8,6 +8,7 @@ const nodemailer = require("nodemailer");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
 const mime = require("mime-types");
+const redisClient = require("../index");
 const {
   S3Client,
   GetObjectCommand,
@@ -298,6 +299,14 @@ const loginAdmin = async (req, res, next) => {
 const getUser = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const cachedUser = await redisClient.get(`user:${id}`);
+    if (cachedUser) {
+      console.log("user data found in cache");
+
+      return res.status(200).json(JSON.parse(cachedUser));
+    }
+
     const user = await User.findById(id).select("-password");
     if (!user) {
       return next(new HttpError("User not found", 404));
@@ -315,6 +324,8 @@ const getUser = async (req, res, next) => {
     if (avatarURL) {
       userResponse.avatarURL = avatarURL;
     }
+
+    await redisClient.setEx(`user:${id}`, 3600, JSON.stringify(userResponse));
 
     res.status(200).json(userResponse);
   } catch (error) {
