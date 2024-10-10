@@ -8,7 +8,7 @@ const nodemailer = require("nodemailer");
 const { v4: uuid } = require("uuid");
 const HttpError = require("../models/errorModel");
 const mime = require("mime-types");
-const redisClient = require("../index");
+const redisClient = require("../redisClient");
 const {
   S3Client,
   GetObjectCommand,
@@ -300,35 +300,46 @@ const getUser = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const cachedUser = await redisClient.get(`user:${id}`);
+    // Check if user data exists in cache
+    const cachedUser = await redisClient.get(`user:${id}`); // Use Redis client directly
     if (cachedUser) {
-      console.log("user data found in cache");
-
+      console.log("User data found in cache");
       return res.status(200).json(JSON.parse(cachedUser));
     }
 
+    // Fetch user data from database
     const user = await User.findById(id).select("-password");
     if (!user) {
       return next(new HttpError("User not found", 404));
     }
-    console.log(user);
+
+    // Retrieve avatar URL if available
     let avatarURL;
     if (user.avatar) {
-      avatarURL = await getObjectURL(user.avatar);
+      try {
+        avatarURL = await getObjectURL(user.avatar);
+      } catch (error) {
+        console.error("Error retrieving avatar URL:", error);
+      }
     }
 
+    // Construct user response
     const userResponse = {
       ...user.toObject(),
     };
 
+    // Add avatar URL if it exists
     if (avatarURL) {
       userResponse.avatarURL = avatarURL;
     }
 
+    // Cache the user data in Redis with expiration (3600 seconds)
     await redisClient.setEx(`user:${id}`, 3600, JSON.stringify(userResponse));
 
+    // Return user response
     res.status(200).json(userResponse);
   } catch (error) {
+    console.error("Error fetching user:", error);
     return next(new HttpError(error));
   }
 };
@@ -349,7 +360,6 @@ const changeAvatar = async (req, res, next) => {
     // Compress the image if it exceeds the size limit after compression
     let compressedImageBuffer;
     if (avatar.size > 1000000) {
-      // 1MB limit after compression
       compressedImageBuffer = await sharp(avatar.data)
         .resize(1024, 1024, { fit: "inside" }) // Resize to fit within 1024x1024
         .jpeg({ quality: 70 }) // Compress to JPEG with 80% quality
