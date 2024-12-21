@@ -147,7 +147,7 @@ const getPosts = async (req, res, next) => {
         return post.toObject();
       })
     );
-
+    // console.log(postsWithUrls);
     res.status(200).json(postsWithUrls);
   } catch (error) {
     return next(new HttpError(error));

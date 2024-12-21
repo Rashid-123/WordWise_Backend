@@ -1,25 +1,35 @@
-// redisClient.js
-const redis = require("redis");
-require("dotenv").config(); // Ensure environment variables are loaded
+const Redis = require("ioredis");
+require("dotenv").config();
 
-// Initialize Redis client with URL from environment or default to localhost
-const redisClient = redis.createClient({
-  url: process.env.REDIS_URL || "redis://localhost:6379",
+// Create a Redis client instance using Render's recommended setup
+const redisClient = new Redis(
+  process.env.REDIS_URL || "redis://localhost:6379"
+);
+
+// Handle connection events
+redisClient.on("connect", () => {
+  console.log("Connected to Redis! 🚀");
 });
 
-// Handle connection errors
 redisClient.on("error", (err) => {
   console.error("Redis connection error:", err);
 });
 
-// Connect to Redis
 (async () => {
   try {
-    await redisClient.connect();
-    console.log("Connected to Redis");
+    // Example operations
+    await redisClient.set("testKey", "testValue");
+    console.log("Key set successfully");
+
+    const value = await redisClient.get("testKey");
+    console.log("Retrieved value:", value);
+
+    // Clean up example data
+    await redisClient.del("testKey");
   } catch (error) {
-    console.error("Error connecting to Redis:", error);
+    console.error("Error interacting with Redis:", error);
   }
 })();
 
-module.exports = redisClient; // Export the connected client
+// Export the Redis client for use in other parts of your app
+module.exports = redisClient;

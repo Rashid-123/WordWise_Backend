@@ -304,6 +304,7 @@ const getUser = async (req, res, next) => {
     const cachedUser = await redisClient.get(`user:${id}`); // Use Redis client directly
     if (cachedUser) {
       console.log("User data found in cache");
+      console.log(cachedUser);
       return res.status(200).json(JSON.parse(cachedUser));
     }
 
@@ -358,6 +359,7 @@ const changeAvatar = async (req, res, next) => {
     const { avatar } = req.files;
 
     // Compress the image if it exceeds the size limit after compression
+
     let compressedImageBuffer;
     if (avatar.size > 1000000) {
       compressedImageBuffer = await sharp(avatar.data)
