@@ -301,10 +301,9 @@ const getUser = async (req, res, next) => {
     const { id } = req.params;
 
     // Check if user data exists in cache
-    const cachedUser = await redisClient.get(`user:${id}`); // Use Redis client directly
+    const cachedUser = await redisClient.get(`user:${id}`);
     if (cachedUser) {
       console.log("User data found in cache");
-      console.log(cachedUser);
       return res.status(200).json(JSON.parse(cachedUser));
     }
 
@@ -327,15 +326,16 @@ const getUser = async (req, res, next) => {
     // Construct user response
     const userResponse = {
       ...user.toObject(),
+      avatarURL,
     };
 
-    // Add avatar URL if it exists
-    if (avatarURL) {
-      userResponse.avatarURL = avatarURL;
-    }
-
     // Cache the user data in Redis with expiration (3600 seconds)
-    await redisClient.setEx(`user:${id}`, 3600, JSON.stringify(userResponse));
+    await redisClient.set(
+      `user:${id}`,
+      JSON.stringify(userResponse),
+      "EX",
+      3600
+    );
 
     // Return user response
     res.status(200).json(userResponse);
