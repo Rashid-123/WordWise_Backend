@@ -300,20 +300,17 @@ const getUser = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Check if user data exists in cache
     const cachedUser = await redisClient.get(`user:${id}`);
     if (cachedUser) {
       console.log("User data found in cache");
       return res.status(200).json(JSON.parse(cachedUser));
     }
 
-    // Fetch user data from database
     const user = await User.findById(id).select("-password");
     if (!user) {
       return next(new HttpError("User not found", 404));
     }
 
-    // Retrieve avatar URL if available
     let avatarURL;
     if (user.avatar) {
       try {
@@ -323,13 +320,11 @@ const getUser = async (req, res, next) => {
       }
     }
 
-    // Construct user response
     const userResponse = {
       ...user.toObject(),
       avatarURL,
     };
 
-    // Cache the user data in Redis with expiration (3600 seconds)
     await redisClient.set(
       `user:${id}`,
       JSON.stringify(userResponse),
@@ -337,7 +332,6 @@ const getUser = async (req, res, next) => {
       3600
     );
 
-    // Return user response
     res.status(200).json(userResponse);
   } catch (error) {
     console.error("Error fetching user:", error);

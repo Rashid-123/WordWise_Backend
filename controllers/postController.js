@@ -15,6 +15,7 @@ const {
   DeleteObjectCommand,
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+const redisClient = require("../redisClient");
 
 //
 ///// --------------- AWS S3 Setup ----------------------------
@@ -163,6 +164,11 @@ const getSinglePost = async (req, res, next) => {
   try {
     console.log("in try");
     const postId = req.params.id;
+    const cachedPost = await redisClient.get(`post:${postId}`);
+    if (cachedPost) {
+      console.log("Post data found in cache");
+      return res.status(200).json(JSON.parse(cachedPost));
+    }
     console.log("first");
     const post = await Post.findById(postId);
     let thumbnailURL = null;
@@ -170,10 +176,16 @@ const getSinglePost = async (req, res, next) => {
       thumbnailURL = await getObjectURL(post.thumbnail);
     }
 
-    res.status(200).json({
-      ...post.toObject(),
-      thumbnailURL,
-    });
+    const postResponse = { ...post.toObject(), thumbnailURL };
+
+    await redisClient.set(
+      `post:${postId}`,
+      JSON.stringify(postResponse),
+      "EX",
+      7200
+    );
+    //
+    res.status(200).json(postResponse);
   } catch (error) {
     return next(new HttpError(error));
   }
@@ -236,7 +248,16 @@ const getUserPosts = async (req, res, next) => {
 //-------------------- EDIT POST -----------------------------------
 // PATCH : api/posts/:id
 // PROTECTED
-
+////
+const removeCachedPost = async (postId) => {
+  try {
+    await redisClient.del(`post:${postId}`);
+    console.log(`Cache for post:${postId} removed successfully`);
+  } catch (error) {
+    console.error(`Error removing cache for post:${postId}:`, error);
+  }
+};
+//////
 const editPost = async (req, res, next) => {
   try {
     let updatedPost;
@@ -340,7 +361,9 @@ const editPost = async (req, res, next) => {
     if (!updatedPost) {
       return next(new HttpError("Couldn't update post", 400));
     }
-
+    //
+    await removeCachedPost(postId);
+    //
     res.status(200).json(updatedPost);
   } catch (error) {
     console.error("Error editing post:", error);
@@ -394,6 +417,9 @@ const deletePost = async (req, res, next) => {
         if (userPostCount < 0) userPostCount = 0;
         await User.findByIdAndUpdate(post.creator, { posts: userPostCount });
       }
+      //
+      await removeCachedPost(postId);
+      //
       res.json(`Post ${postId} deleted successfully`);
     } else {
       return next(new HttpError("Post couldn't be deleted", 403));
