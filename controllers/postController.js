@@ -198,6 +198,13 @@ const getSinglePost = async (req, res, next) => {
 const getCatPosts = async (req, res, next) => {
   try {
     const { category } = req.params;
+    //
+    const cached_Category = await redisClient.get(`category:${category}`);
+    if (cached_Category) {
+      console.log("category data found in cache");
+      return res.status(200).json(JSON.parse(cached_Category));
+    }
+    //
     const catPOsts = await Post.find({ category }).sort({ updatedAt: -1 });
     const postsWithUrls = await Promise.all(
       catPOsts.map(async (post) => {
@@ -211,7 +218,14 @@ const getCatPosts = async (req, res, next) => {
         return post.toObject();
       })
     );
-
+    //
+    await redisClient.set(
+      `category:${category}`,
+      JSON.stringify(postsWithUrls),
+      "EX",
+      3600
+    );
+    //
     res.status(200).json(postsWithUrls);
   } catch (error) {
     return next(new HttpError(error));
@@ -434,16 +448,22 @@ const getFeaturedPost = async (req, res, next) => {
   try {
     const admin = await Admin.findOne();
     const post = await Post.findById(admin.featured);
+    const cached_Featured = await redisClient.get("post:featured");
+    if (cached_Featured) {
+      console.log("Featured data found in cache");
+      return res.status(200).json(JSON.parse(cached_Featured));
+    }
     //
     let thumbnailURL = null;
     if (post.thumbnail) {
       thumbnailURL = await getObjectURL(post.thumbnail);
     }
 
-    res.status(200).json({
-      ...post.toObject(),
-      thumbnailURL,
-    });
+    const featuredResponse = { ...post.toObject(), thumbnailURL };
+    //
+    await redisClient.set("post:featured", JSON.stringify(featuredResponse));
+    //
+    res.status(200).json(featuredResponse);
   } catch (error) {
     console.log(error);
   }

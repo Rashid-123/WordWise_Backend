@@ -15,7 +15,7 @@ const {
   DeleteObjectCommand,
 } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-
+const redisClient = require("../redisClient");
 //
 ///// --------------- AWS S3 Setup ----------------------------
 
@@ -55,6 +55,18 @@ const addFeaturedPost = async (req, res) => {
     admin.featured = new mongoose.Types.ObjectId(postId);
 
     await admin.save();
+
+    // here Featured post is cached
+    const post = await Post.findById(postId);
+    let thumbnailURL = null;
+    if (post.thumbnail) {
+      thumbnailURL = await getObjectURL(post.thumbnail);
+    }
+
+    const postResponse = { ...post.toObject(), thumbnailURL };
+
+    await redisClient.set(`post:featured`, JSON.stringify(postResponse));
+    //
 
     res.status(200).json({
       message: "Featured post updated successfully",
