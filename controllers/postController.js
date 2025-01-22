@@ -461,7 +461,12 @@ const getFeaturedPost = async (req, res, next) => {
 
     const featuredResponse = { ...post.toObject(), thumbnailURL };
     //
-    await redisClient.set("post:featured", JSON.stringify(featuredResponse));
+    await redisClient.set(
+      "post:featured",
+      JSON.stringify(featuredResponse),
+      "EX",
+      3600
+    );
     //
     res.status(200).json(featuredResponse);
   } catch (error) {
