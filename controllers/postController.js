@@ -448,11 +448,11 @@ const getFeaturedPost = async (req, res, next) => {
   try {
     const admin = await Admin.findOne();
     const post = await Post.findById(admin.featured);
-    const cached_Featured = await redisClient.get("post:featured");
-    if (cached_Featured) {
-      console.log("Featured data found in cache");
-      return res.status(200).json(JSON.parse(cached_Featured));
-    }
+    // const cached_Featured = await redisClient.get("post:featured");
+    // if (cached_Featured) {
+    //   console.log("Featured data found in cache");
+    //   return res.status(200).json(JSON.parse(cached_Featured));
+    // }
     //
     let thumbnailURL = null;
     if (post.thumbnail) {
